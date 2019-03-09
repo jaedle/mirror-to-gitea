@@ -7,7 +7,7 @@
 
 ## Description
 
-This script mirrors automatically the public repositories from a github-user or github-organization to your gitea server. 
+This script mirrors automatically the public repositories from a github-user or github-organization to your gitea server.
 It will - once started - create a mirrored repository under a given token for a gitea user fully automatically.
 
 Example:
@@ -37,6 +37,8 @@ docker container run \
  -e GITEA_TOKEN=please-exchange-with-token \
  jaedle/mirror-to-gitea:latest
 ```
+
+This will a spin up a docker container running infinite which will try to mirror all your repositories once every hour to your gitea server.
 
 ### Parameters
 
