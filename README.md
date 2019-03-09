@@ -46,6 +46,8 @@ docker container run \
 
 ## Things to do
 
+- refactoring
+- think about how to test
 - configurable interval
 - better logging
 - use github token to solve problems with rate limits
