@@ -1,11 +1,11 @@
 # Mirror your github repositories to your gitea server
 
-# Badges
+## Badges
+
 [![image pulls](https://img.shields.io/docker/pulls/jaedle/mirror-to-gitea.svg)](https://cloud.docker.com/repository/docker/jaedle/mirror-to-gitea)
 [![microbadger analysis](https://images.microbadger.com/badges/image/jaedle/mirror-to-gitea.svg)](https://microbadger.com/images/jaedle/mirror-to-gitea "Get your own image badge on microbadger.com")
 
-
-# Description
+## Description
 
 This script mirrors automatically the public repositories from a github-user or github-organization to your gitea server. 
 It will - once started - create a mirrored repository under a given token for a gitea user fully automatically.
