@@ -25,7 +25,7 @@ The mirror settings are default by your gitea instance.
 docker container run \
  -d \
  --restart always \
- -e GITHUB_USER=github-user \
+ -e GITHUB_USERNAME=github-user \
  -e GITEA_URL=https://some-gitea.url \
  -e GITEA_TOKEN=please-exchange-with-token \
  jaedle/mirror-to-gitea:latest
@@ -33,7 +33,7 @@ docker container run \
 
 ### Parameters
 
-- `GITHUB_USER` name of users which public repos should be mirrored
+- `GITHUB_USERNAME` name of user or organization which public repos should be mirrored
 - `GITEA_URL` url of your gitea server
 - `GITEA_TOKEN` token for your gitea user
 
