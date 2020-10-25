@@ -1,5 +1,6 @@
 const {Octokit} = require('@octokit/rest');
 const request = require('superagent');
+const {default: PQueue} = require('p-queue');
 
 
 async function getGithubRepositories(username, token) {
@@ -90,13 +91,14 @@ async function main() {
     url: giteaUrl,
     token: giteaToken,
   };
-
   const giteaUser = await getGiteaUser(gitea);
-  githubRepositories.forEach(
-    async repository => {
+
+  const queue = new PQueue({ concurrency: 4 });
+  await queue.addAll(githubRepositories.map(repository => {
+    return async () => {
       await mirror(repository, gitea, giteaUser);
-    }
-  );
+    };
+  }));
 }
 
 main();
