@@ -43,6 +43,7 @@ This will a spin up a docker container running infinite which will try to mirror
 ### Parameters
 
 - `GITHUB_USERNAME` name of user or organization which public repos should be mirrored
+- `GITHUB_TOKEN` [GitHub personal access token](https://docs.github.com/en/free-pro-team@latest/github/authenticating-to-github/creating-a-personal-access-token) (optional)
 - `GITEA_URL` url of your gitea server
 - `GITEA_TOKEN` token for your gitea user
 
