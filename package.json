@@ -19,6 +19,7 @@
   "homepage": "https://github.com/jaedle/mirror-to-gitea#readme",
   "dependencies": {
     "@octokit/rest": "^16.2.0",
+    "p-queue": "^6.6.2",
     "superagent": "^4.0.0"
   }
 }

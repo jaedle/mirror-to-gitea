@@ -1,8 +1,12 @@
-const octokit = require('@octokit/rest')();
+const {Octokit} = require('@octokit/rest');
 const request = require('superagent');
+const {default: PQueue} = require('p-queue');
 
 
-async function getGithubRepositories(username) {
+async function getGithubRepositories(username, token) {
+  const octokit = new Octokit({
+    auth: token || null,
+  });
   return octokit.paginate('GET /users/:username/repos', { username: username })
     .then(repositories => toRepositoryList(repositories));
 }
@@ -66,6 +70,7 @@ async function main() {
     console.error('No GITHUB_USERNAME specified, please specify! Exiting..');
     return;
   }
+  const githubToken = process.env.GITHUB_TOKEN;
   const giteaUrl = process.env.GITEA_URL;
   if (!giteaUrl) {
     console.error('No GITEA_URL specified, please specify! Exiting..');
@@ -79,20 +84,21 @@ async function main() {
   }
 
 
-  const githubRepositories = await getGithubRepositories(githubUsername);
+  const githubRepositories = await getGithubRepositories(githubUsername, githubToken);
   console.log(`Found ${githubRepositories.length} repositories on github`);
 
   const gitea = {
     url: giteaUrl,
     token: giteaToken,
   };
-
   const giteaUser = await getGiteaUser(gitea);
-  githubRepositories.forEach(
-    async repository => {
+
+  const queue = new PQueue({ concurrency: 4 });
+  await queue.addAll(githubRepositories.map(repository => {
+    return async () => {
       await mirror(repository, gitea, giteaUser);
-    }
-  );
+    };
+  }));
 }
 
 main();
