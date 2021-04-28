@@ -20,7 +20,7 @@ function toRepositoryList(repositories) {
 async function getGiteaUser(gitea) {
   return request.get(gitea.url
     + '/api/v1/user')
-    .query(`access_token=${gitea.token}`)
+    .set('Authorization', 'token ' + gitea.token)
     .then(response => {
       return { id: response.body.id, name: response.body.username }
     });
@@ -30,14 +30,14 @@ function isAlreadyMirroredOnGitea(repository, gitea, giteaUser) {
   const requestUrl = `${gitea.url}/api/v1/repos/${giteaUser.name}/${repository}`;
   return request.get(
     requestUrl)
-    .query(`access_token=${gitea.token}`)
+    .set('Authorization', 'token ' + gitea.token)
     .then(() => true)
     .catch(() => false);
 }
 
 function mirrorOnGitea(repository, gitea, giteaUser) {
   request.post(`${gitea.url}/api/v1/repos/migrate`)
-    .query(`access_token=${gitea.token}`)
+    .set('Authorization', 'token ' + gitea.token)
     .send({
       clone_addr: repository.url,
       mirror: true,
