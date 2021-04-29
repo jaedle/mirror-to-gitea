@@ -7,7 +7,8 @@ async function getGithubRepositories(username, token) {
   const octokit = new Octokit({
     auth: token || null,
   });
-  return octokit.paginate('GET /users/:username/repos', { username: username })
+
+  return octokit.paginate('GET /search/repositories?q=user:{username}', { username : username })
     .then(repositories => toRepositoryList(repositories));
 }
 
@@ -35,10 +36,11 @@ function isAlreadyMirroredOnGitea(repository, gitea, giteaUser) {
     .catch(() => false);
 }
 
-function mirrorOnGitea(repository, gitea, giteaUser) {
+function mirrorOnGitea(repository, gitea, giteaUser, githubToken) {
   request.post(`${gitea.url}/api/v1/repos/migrate`)
     .set('Authorization', 'token ' + gitea.token)
     .send({
+      auth_token: githubToken,
       clone_addr: repository.url,
       mirror: true,
       repo_name: repository.name,
@@ -53,7 +55,7 @@ function mirrorOnGitea(repository, gitea, giteaUser) {
 
 }
 
-async function mirror(repository, gitea, giteaUser) {
+async function mirror(repository, gitea, giteaUser, githubToken) {
   if (await isAlreadyMirroredOnGitea(repository.name,
     gitea,
     giteaUser)) {
@@ -61,7 +63,7 @@ async function mirror(repository, gitea, giteaUser) {
     return;
   }
   console.log('Mirroring repository to gitea: ', repository.name);
-  await mirrorOnGitea(repository, gitea, giteaUser);
+  await mirrorOnGitea(repository, gitea, giteaUser, githubToken);
 }
 
 async function main() {
@@ -96,7 +98,7 @@ async function main() {
   const queue = new PQueue({ concurrency: 4 });
   await queue.addAll(githubRepositories.map(repository => {
     return async () => {
-      await mirror(repository, gitea, giteaUser);
+      await mirror(repository, gitea, giteaUser, githubToken);
     };
   }));
 }
