@@ -7,15 +7,32 @@ async function getGithubRepositories(username, token) {
   const octokit = new Octokit({
     auth: token || null,
   });
+  
+  const publicRepositoriesWithForks = await octokit.paginate('GET /users/:username/repos', { username: username })
+  .then(repositories => toRepositoryList(repositories));
 
-  return octokit.paginate('GET /search/repositories?q=user:{username}', { username : username })
+  const allRepositoriesWithoutForks = await octokit.paginate('GET /search/repositories?q=user:{username}', { username : username })
     .then(repositories => toRepositoryList(repositories));
+
+  return filterDuplicates(allRepositoriesWithoutForks.concat(publicRepositoriesWithForks));
 }
 
 function toRepositoryList(repositories) {
   return repositories.map(repository => {
     return { name: repository.name, url: repository.clone_url }
   });
+}
+
+function filterDuplicates(array) {
+  var a = array.concat();
+  for(var i=0; i<a.length; ++i) {
+      for(var j=i+1; j<a.length; ++j) {
+          if(a[i].url === a[j].url)
+              a.splice(j--, 1);
+      }
+  }
+
+  return a;
 }
 
 async function getGiteaUser(gitea) {
