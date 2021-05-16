@@ -7,7 +7,7 @@
 
 ## Description
 
-This script mirrors automatically the public repositories from a github-user or github-organization to your gitea server.
+This script mirrors automatically the repositories from a github-user or github-organization to your gitea server.
 It will - once started - create a mirrored repository under a given token for a gitea user fully automatically.
 
 Example:
@@ -19,9 +19,11 @@ Starting the script with a gitea token for the account `gitea-user` will create 
 
 The mirror settings are default by your gitea instance.
 
+It is also possible to mirror private repos but it is not default behavior. For that you will have to set the correct paremeters, see [here](#parameters)
+
 ## Prerequisites
 
-- Something to mirror (a github user or organization with public repos)
+- Something to mirror (a github user or organization with repos)
 - Gitea instance up and running
 - User for Gitea with generated token
 - Docker
@@ -43,9 +45,10 @@ This will a spin up a docker container running infinite which will try to mirror
 ### Parameters
 
 - `GITHUB_USERNAME` name of user or organization which public repos should be mirrored
-- `GITHUB_TOKEN` [GitHub personal access token](https://docs.github.com/en/free-pro-team@latest/github/authenticating-to-github/creating-a-personal-access-token) (optional)
+- `GITHUB_TOKEN`(optional) [GitHub personal access token](https://docs.github.com/en/free-pro-team@latest/github/authenticating-to-github/creating-a-personal-access-token). **Attention: if this is set, the token will be transmitted to your specified Gitea instance!**
 - `GITEA_URL` url of your gitea server
 - `GITEA_TOKEN` token for your gitea user
+- `MIRROR_PRIVATE_REPOSITORIES`(optional) if set to 'true', your private GitHub repositories will be mirrored. The `GITHUB_TOKEN` parameter must be set for this to work.
 
 ## Things to do
 
