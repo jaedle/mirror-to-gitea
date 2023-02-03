@@ -2,13 +2,14 @@
 
 set -e
 
-ONE_HOUR_DELAY=3600
+# Get custom delay, else use 3600 seconds
+DELAY="${DELAY:-3600}"
 
 while true
 do
-  echo 'Starting to create mirrors'
+  echo "Starting to create mirrors..."
   node /app/src/index.js
 
-  echo 'Waiting...'
-  sleep "${ONE_HOUR_DELAY}"
+  echo "Waiting for ${DELAY} seconds..."
+  sleep "${DELAY}"
 done
