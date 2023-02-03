@@ -26,7 +26,7 @@ async function getGithubRepositories(username, token, mirrorPrivateRepositories)
 
 function toRepositoryList(repositories) {
   return repositories.map(repository => {
-    return { name: repository.name, url: repository.clone_url }
+    return { name: repository.name, url: repository.clone_url, private: repository.private };
   });
 }
 
@@ -69,6 +69,7 @@ function mirrorOnGitea(repository, gitea, giteaUser, githubToken) {
       mirror: true,
       repo_name: repository.name,
       uid: giteaUser.id,
+      private: repository.private
     })
     .then(() => {
       console.log('Did it!');
