@@ -8,12 +8,12 @@ async function getGithubRepositories(username, token, mirrorPrivateRepositories)
     auth: token || null,
   });
   
-  const publicRepositoriesWithForks = await octokit.paginate('GET /users/:username/repos', { username: username })
+  const publicRepositoriesWithForks = await octokit.paginate('GET /user/repos?visibility=public&affiliation=owner&visibility=public', { username: username })
       .then(repositories => toRepositoryList(repositories));
 
   let allRepositoriesWithoutForks;
   if(mirrorPrivateRepositories === 'true'){
-  allRepositoriesWithoutForks = await octokit.paginate('GET /search/repositories?q=user:{username}', { username : username })
+  allRepositoriesWithoutForks = await octokit.paginate('GET /user/repos?visibility=public&affiliation=owner&visibility=private', { username : username })
     .then(repositories => toRepositoryList(repositories));
   }
 
@@ -104,7 +104,7 @@ async function main() {
     return;
   }
 
-  const giteaToken = process.env.GITEA_TOKE;
+  const giteaToken = process.env.GITEA_TOKEN;
   if (!giteaToken) {
     console.error('No GITEA_TOKEN specified, please specify! Exiting..');
     return;
