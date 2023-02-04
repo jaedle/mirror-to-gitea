@@ -8,12 +8,12 @@ async function getGithubRepositories(username, token, mirrorPrivateRepositories)
     auth: token || null,
   });
   
-  const publicRepositoriesWithForks = await octokit.paginate('GET /user/repos?visibility=public&affiliation=owner&visibility=public', { username: username })
+  const publicRepositoriesWithForks = await octokit.paginate('GET /users/:username/repos', { username: username })
       .then(repositories => toRepositoryList(repositories));
 
   let allRepositoriesWithoutForks;
   if(mirrorPrivateRepositories === 'true'){
-  allRepositoriesWithoutForks = await octokit.paginate('GET /user/repos?visibility=public&affiliation=owner&visibility=private', { username : username })
+  allRepositoriesWithoutForks = await octokit.paginate('GET /user/repos?visibility=public&affiliation=owner&visibility=private')
     .then(repositories => toRepositoryList(repositories));
   }
 
