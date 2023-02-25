@@ -105,6 +105,5 @@ In your Docker Compose file, replace `jaedle/mirror-to-gitea:latest` with `build
 - Refactoring
 - Think about how to test
 - Better logging
-- Use github token to solve problems with rate limits
 - Add gitlab support
 - And so on..
