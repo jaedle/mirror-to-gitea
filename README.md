@@ -53,9 +53,10 @@ services:
           - GITHUB_USERNAME=github-user
           - GITEA_URL=https://your-gitea.url
           - GITEA_TOKEN=please-exchange-with-token
-          #- GITHUB_TOKEN=please-exchange-with-token # Optional, set to mirror private repos
-          #- MIRROR_PRIVATE_REPOSITORIES=true # Optional, set to mirror private repos
+          # - GITHUB_TOKEN=please-exchange-with-token # Optional, set to mirror private repos
+          # - MIRROR_PRIVATE_REPOSITORIES=true # Optional, set to mirror private repos
           # - DELAY=3600 # Optional, set to change the delay between checks (in seconds)
+          # - DRY_RUN=true # Optional, set to only log what would be done
         container_name: mirror-to-gitea
 ```
 ## Building from Source
@@ -99,6 +100,7 @@ In your Docker Compose file, replace `jaedle/mirror-to-gitea:latest` with `build
 - `GITHUB_TOKEN`: [GitHub personal access token](https://docs.github.com/en/free-pro-team@latest/github/authenticating-to-github/creating-a-personal-access-token). **Attention: if this is set, the token will be transmitted to your specified Gitea instance!**
 - `MIRROR_PRIVATE_REPOSITORIES`: If set to `true`, your private GitHub repositories will also be mirrored to gitea. The `GITHUB_TOKEN` parameter must be set for this to work.
 - `DELAY`: How often to check for new repositories in seconds. Default is 3600 (1 hour).
+- `DRY_RUN`: If set to `true` or `1`, the script will only log what would be done, but not actually create any mirror.
 
 ## Things to do
 
