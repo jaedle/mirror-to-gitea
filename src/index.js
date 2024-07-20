@@ -115,8 +115,8 @@ async function main() {
     return;
   }
 
-  const mirrorPrivateRepositories = process.env.MIRROR_PRIVATE_REPOSITORIES;
-  if(mirrorPrivateRepositories === 'true' && !githubToken){
+  const mirrorPrivateRepositories = ['1', 'true'].includes(process.env.MIRROR_PRIVATE_REPOSITORIES)
+  if(mirrorPrivateRepositories && !githubToken){
     console.error('MIRROR_PRIVATE_REPOSITORIES was set to true but no GITHUB_TOKEN was specified, please specify! Exiting..')
     return;
   }
