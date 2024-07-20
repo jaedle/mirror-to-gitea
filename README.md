@@ -48,7 +48,7 @@ version: "3.3"
 services:
     mirror-to-gitea:
         image: jaedle/mirror-to-gitea:latest
-        restart: always
+        restart: unless-stopped
         environment:
           - GITHUB_USERNAME=github-user
           - GITEA_URL=https://your-gitea.url
