@@ -130,6 +130,16 @@ async function main() {
 
   const dryRun = ['1', 'true'].includes(process.env.DRY_RUN);
 
+  console.log("Starting with the following configuration:")
+  console.log(` - GITHUB_USERNAME: ${githubUsername}`);
+  console.log(` - GITHUB_TOKEN: ${githubToken ? '****' : ''}`);
+  console.log(` - GITEA_URL: ${giteaUrl}`);
+  console.log(` - GITEA_TOKEN: ${giteaToken ? '****' : ''}`);
+  console.log(` - MIRROR_PRIVATE_REPOSITORIES: ${mirrorPrivateRepositories}`);
+  console.log(` - SKIP_FORKS: ${!mirrorForks}`);
+  console.log(` - DRY_RUN: ${dryRun}`);
+
+
   const githubRepositories = await getGithubRepositories(githubUsername, githubToken, mirrorPrivateRepositories, mirrorForks);
   console.log(`Found ${githubRepositories.length} repositories on github`);
 
