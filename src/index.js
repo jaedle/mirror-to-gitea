@@ -24,6 +24,17 @@ async function getGithubRepositories(username, token, mirrorPrivateRepositories)
   }
 }
 
+async function getGithubOrgRepositories(org, token) {
+  const octokit = new Octokit({
+    auth: token || null,
+  });
+
+  const repositories = await octokit.paginate('GET /search/repositories', { q: `org:${org}` })
+      .then(repositories => toRepositoryList(repositories));
+
+  return repositories;
+}
+
 function toRepositoryList(repositories) {
   return repositories.map(repository => {
     return { name: repository.name, url: repository.clone_url, private: repository.private };
@@ -93,10 +104,16 @@ async function mirror(repository, gitea, giteaUser, githubToken) {
 
 async function main() {
   const githubUsername = process.env.GITHUB_USERNAME;
-  if (!githubUsername) {
-    console.error('No GITHUB_USERNAME specified, please specify! Exiting..');
+  const githubOrg = process.env.GITHUB_ORG;
+
+  if (!githubUsername && ! githubOrg) {
+    console.error('Neither GITHUB_USERNAME nor GITHUB_ORG specified, please specify! Exiting..');
+    return;
+  } else if (githubUsername && githubOrg) {
+    console.error('Error: You can only specify GITHUB_USERNAME or GITHUB_ORG, not both. Exiting..');
     return;
   }
+
   const githubToken = process.env.GITHUB_TOKEN;
   const giteaUrl = process.env.GITEA_URL;
 
@@ -117,8 +134,14 @@ async function main() {
     return;
   }
 
+  let githubRepositories = [];
 
-  const githubRepositories = await getGithubRepositories(githubUsername, githubToken, mirrorPrivateRepositories);
+  if (githubUsername) {
+    githubRepositories = await getGithubRepositories(githubUsername, githubToken, mirrorPrivateRepositories);
+  } else if (githubOrg) {
+    githubRepositories = await getGithubOrgRepositories(githubOrg, githubToken);
+  }
+
   console.log(`Found ${githubRepositories.length} repositories on github`);
 
   const gitea = {
