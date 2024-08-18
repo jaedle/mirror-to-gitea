@@ -100,10 +100,3 @@ In your Docker Compose file, replace `jaedle/mirror-to-gitea:latest` with `build
 - `MIRROR_PRIVATE_REPOSITORIES`: If set to `true`, your private GitHub repositories will also be mirrored to gitea. The `GITHUB_TOKEN` parameter must be set for this to work.
 - `DELAY`: How often to check for new repositories in seconds. Default is 3600 (1 hour).
 
-## Things to do
-
-- Refactoring
-- Think about how to test
-- Better logging
-- Add gitlab support
-- And so on..
