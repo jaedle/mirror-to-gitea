@@ -7,20 +7,38 @@ async function getGithubRepositories(username, token, mirrorPrivateRepositories)
   const octokit = new Octokit({
     auth: token || null,
   });
-  
-  const publicRepositoriesWithForks = await octokit.paginate('GET /users/:username/repos', { username: username })
+
+  const user = await octokit.request('GET /users/{username}', { username: username });
+  const type = user.data.type;
+
+  if (type === 'User') {
+    const publicRepositoriesWithForks = await octokit.paginate('GET /users/:username/repos', { username: username })
       .then(repositories => toRepositoryList(repositories));
 
-  let allRepositoriesWithoutForks;
-  if(mirrorPrivateRepositories === 'true'){
-  allRepositoriesWithoutForks = await octokit.paginate('GET /user/repos?visibility=public&affiliation=owner&visibility=private')
-    .then(repositories => toRepositoryList(repositories));
-  }
+    let allRepositoriesWithoutForks;
+    if (mirrorPrivateRepositories === 'true') {
+      allRepositoriesWithoutForks = await octokit.paginate('GET /user/repos?visibility=public&affiliation=owner&visibility=private')
+        .then(repositories => toRepositoryList(repositories));
+    }
 
-  if(mirrorPrivateRepositories === 'true'){
-    return filterDuplicates(allRepositoriesWithoutForks.concat(publicRepositoriesWithForks));
-  }else{
-    return publicRepositoriesWithForks;
+    if (mirrorPrivateRepositories === 'true') {
+      return filterDuplicates(allRepositoriesWithoutForks.concat(publicRepositoriesWithForks));
+    } else {
+      return publicRepositoriesWithForks;
+    }
+  } else if (type === 'Organization') {
+    let query = `org:${username} fork:true is:public`
+
+    if (mirrorPrivateRepositories === 'true') {
+      query += ' is:private'
+    }
+
+    const repositories = await octokit.paginate('GET /search/repositories', { q: query })
+      .then(repositories => toRepositoryList(repositories));
+
+    return repositories;
+  } else {
+    throw new Error(`Invalid "type": ${type}`)
   }
 }
 
