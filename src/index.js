@@ -7,32 +7,39 @@ async function getGithubRepositories(username, token, mirrorPrivateRepositories)
   const octokit = new Octokit({
     auth: token || null,
   });
-  
-  const publicRepositoriesWithForks = await octokit.paginate('GET /users/:username/repos', { username: username })
+
+  const user = await octokit.request('GET /users/{username}', { username: username });
+  const type = user.data.type;
+
+  if (type === 'User') {
+    const publicRepositoriesWithForks = await octokit.paginate('GET /users/:username/repos', { username: username })
       .then(repositories => toRepositoryList(repositories));
 
-  let allRepositoriesWithoutForks;
-  if(mirrorPrivateRepositories === 'true'){
-  allRepositoriesWithoutForks = await octokit.paginate('GET /user/repos?visibility=public&affiliation=owner&visibility=private')
-    .then(repositories => toRepositoryList(repositories));
-  }
+    let allRepositoriesWithoutForks;
+    if (mirrorPrivateRepositories === 'true') {
+      allRepositoriesWithoutForks = await octokit.paginate('GET /user/repos?visibility=public&affiliation=owner&visibility=private')
+        .then(repositories => toRepositoryList(repositories));
+    }
 
-  if(mirrorPrivateRepositories === 'true'){
-    return filterDuplicates(allRepositoriesWithoutForks.concat(publicRepositoriesWithForks));
-  }else{
-    return publicRepositoriesWithForks;
-  }
-}
+    if (mirrorPrivateRepositories === 'true') {
+      return filterDuplicates(allRepositoriesWithoutForks.concat(publicRepositoriesWithForks));
+    } else {
+      return publicRepositoriesWithForks;
+    }
+  } else if (type === 'Organization') {
+    let query = `org:${username} fork:true is:public`
 
-async function getGithubOrgRepositories(org, token) {
-  const octokit = new Octokit({
-    auth: token || null,
-  });
+    if (mirrorPrivateRepositories === 'true') {
+      query += ' is:private'
+    }
 
-  const repositories = await octokit.paginate('GET /search/repositories', { q: `org:${org}` })
+    const repositories = await octokit.paginate('GET /search/repositories', { q: query })
       .then(repositories => toRepositoryList(repositories));
 
-  return repositories;
+    return repositories;
+  } else {
+    throw new Error(`Invalid "type": ${type}`)
+  }
 }
 
 function toRepositoryList(repositories) {
@@ -104,16 +111,10 @@ async function mirror(repository, gitea, giteaUser, githubToken) {
 
 async function main() {
   const githubUsername = process.env.GITHUB_USERNAME;
-  const githubOrg = process.env.GITHUB_ORG;
-
-  if (!githubUsername && ! githubOrg) {
-    console.error('Neither GITHUB_USERNAME nor GITHUB_ORG specified, please specify! Exiting..');
-    return;
-  } else if (githubUsername && githubOrg) {
-    console.error('Error: You can only specify GITHUB_USERNAME or GITHUB_ORG, not both. Exiting..');
+  if (!githubUsername) {
+    console.error('No GITHUB_USERNAME specified, please specify! Exiting..');
     return;
   }
-
   const githubToken = process.env.GITHUB_TOKEN;
   const giteaUrl = process.env.GITEA_URL;
 
@@ -134,14 +135,8 @@ async function main() {
     return;
   }
 
-  let githubRepositories = [];
 
-  if (githubUsername) {
-    githubRepositories = await getGithubRepositories(githubUsername, githubToken, mirrorPrivateRepositories);
-  } else if (githubOrg) {
-    githubRepositories = await getGithubOrgRepositories(githubOrg, githubToken);
-  }
-
+  const githubRepositories = await getGithubRepositories(githubUsername, githubToken, mirrorPrivateRepositories);
   console.log(`Found ${githubRepositories.length} repositories on github`);
 
   const gitea = {
