@@ -1,7 +1,6 @@
-const {Octokit} = require('@octokit/rest');
-const request = require('superagent');
-const {default: PQueue} = require('p-queue');
-
+import {Octokit} from "@octokit/rest";
+import * as request from 'superagent'
+import PQueue  from "p-queue";
 
 async function getGithubRepositories(username, token, mirrorPrivateRepositories, mirrorForks) {
   const octokit = new Octokit({
