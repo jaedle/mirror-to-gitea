@@ -4,12 +4,22 @@ tasks:
   world:
     aliases: [ default ]
     cmds:
+      - task: install
       - task: clean
       - task: check
       - task: test
       - task: build
 
   run-local: ./run-local.sh
+
+  install:
+    cmd: npm ci
+    sources:
+      - package.json
+      - package-lock.json
+    status:
+      - test -d node_modules
+
 
   clean: npm run clean
   check: npm run check
