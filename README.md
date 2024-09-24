@@ -104,3 +104,9 @@ Execute the script in foreground:
 ```sh
 task run-local
 ```
+
+## Kudos
+
+Kudos to all contributors! 🙏
+
+[![](https://opencollective.com/html-react-parser/contributors.svg?width=890&button=false)](https://github.com/jaedle/mirror-to-gitea/graphs/contributors)
