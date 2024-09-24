@@ -7,6 +7,8 @@ RUN npm ci
 COPY docker-entrypoint.sh .
 COPY src ./src
 
-RUN npm run build
+RUN npm run build && rm -rf package*.json
+
+
 
 CMD [ "/app/docker-entrypoint.sh" ]
