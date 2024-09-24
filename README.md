@@ -34,16 +34,16 @@ private repos, they will be created as private repos on your gitea server.
 
 All configuration is performed through environment variables. Flags are considered `true` on `true`, `TRUE` or `1`.
 
-| Parameter                   | Required | Default | Description                                                                                                                                                                                  |
-|-----------------------------|----------|---------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| GITHUB_USERNAME             | yes      | -       | The name of the GitHub user or organisation to mirror.                                                                                                                                       |
-| GITEA_URL                   | yes      | -       | The url of your Gitea server.                                                                                                                                                                |
-| GITEA_TOKEN                 | yes      | -       | The token for your gitea user (Settings -> Applications -> Generate New Token). **Attention: if this is set, the token will be transmitted to your specified Gitea instance!**               |
-| GITHUB_TOKEN                | no*      | -       | GitHub token (PAT). Is mandatory in combination with `MIRROR_PRIVATE_REPOSITORIES`.                                                                                                          |
-| MIRROR_PRIVATE_REPOSITORIES | no       | FALSE   | If set to `true` your private GitHub Repositories will be mirrored to Gitea. Requires `GITHUB_TOKEN`.                                                                                        |
-| SKIP_FORKS                  | no       | FALSE   | If set to `true` will disable the mirroring of forks from your GitHub User / Organisation.                                                                                                   |
-| DELAY                       | no       | 3600s   | Number of seconds between program executions. Setting this will only affect how soon after a new repo was created a mirror may appar on Gitea, but has no affect on the ongoing replication. |
-| DRY_RUN                     | no       | FALSE   | If set to `true` will perform no writing changes to your Gitea instance, but log the planned actions.                                                                                        |
+| Parameter                   | Required | Type   | Default | Description                                                                                                                                                                                  |
+|-----------------------------|----------|--------|---------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| GITHUB_USERNAME             | yes      | string | -       | The name of the GitHub user or organisation to mirror.                                                                                                                                       |
+| GITEA_URL                   | yes      | string | -       | The url of your Gitea server.                                                                                                                                                                |
+| GITEA_TOKEN                 | yes      | string | -       | The token for your gitea user (Settings -> Applications -> Generate New Token). **Attention: if this is set, the token will be transmitted to your specified Gitea instance!**               |
+| GITHUB_TOKEN                | no*      | string | -       | GitHub token (PAT). Is mandatory in combination with `MIRROR_PRIVATE_REPOSITORIES`.                                                                                                          |
+| MIRROR_PRIVATE_REPOSITORIES | no       | bool   | FALSE   | If set to `true` your private GitHub Repositories will be mirrored to Gitea. Requires `GITHUB_TOKEN`.                                                                                        |
+| SKIP_FORKS                  | no       | bool   | FALSE   | If set to `true` will disable the mirroring of forks from your GitHub User / Organisation.                                                                                                   |
+| DELAY                       | no       | int    | 3600    | Number of seconds between program executions. Setting this will only affect how soon after a new repo was created a mirror may appar on Gitea, but has no affect on the ongoing replication. |
+| DRY_RUN                     | no       | bool   | FALSE   | If set to `true` will perform no writing changes to your Gitea instance, but log the planned actions.                                                                                        |
 
 ### Docker
 
