@@ -1,7 +1,7 @@
 import {default as get} from './get-github-repositories';
 import {Octokit} from "@octokit/rest";
 
-describe('get-github-repfalseositories', () => {
+describe('get-github-repositories', () => {
     xit('fetches public repositories', async () => {
         const octokit = new Octokit({
             auth: null,
