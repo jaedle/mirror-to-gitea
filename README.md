@@ -109,4 +109,6 @@ task run-local
 
 Kudos to all contributors! 🙏
 
-[![](https://opencollective.com/html-react-parser/contributors.svg?width=890&button=false)](https://github.com/jaedle/mirror-to-gitea/graphs/contributors)
+<a href="https://github.com/jaedle/mirror-to-gitea/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=jaedle/mirror-to-gitea" />
+</a>
