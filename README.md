@@ -18,7 +18,8 @@ Starting the script with a gitea token for the account `gitea-user` will create 
 
 The mirror settings are default by your gitea instance.
 
-It is also possible to mirror private repos, which can be configred here in [#parameters](#parameters). When mirroring private repos, they will be created as private repos on your gitea server.
+It is also possible to mirror private repos, which can be configred here in [#parameters](#parameters). When mirroring
+private repos, they will be created as private repos on your gitea server.
 
 ## Prerequisites
 
@@ -27,10 +28,27 @@ It is also possible to mirror private repos, which can be configred here in [#pa
 - User for Gitea with generated token (Settings -> Applications -> Generate New Token)
 - Docker or Docker Compose
 
-### Docker Run
+## Running
+
+### Configuration
+
+All configuration is performed through environment variables.
+
+| Parameter                   | Required | Default | Description                                                                                                                                                                                  |
+|-----------------------------|----------|---------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| GITHUB_USERNAME             | yes      | -       | The name of the GitHub user or organisation to mirror.                                                                                                                                       |
+| GITEA_URL                   | yes      | -       | The url of your Gitea server.                                                                                                                                                                |
+| GITEA_TOKEN                 | yes      | -       | The token for your gitea user (Settings -> Applications -> Generate New Token). **Attention: if this is set, the token will be transmitted to your specified Gitea instance!**               |
+| GITHUB_TOKEN                | no*      | -       | GitHub token (PAT). Is mandatory in combination with `MIRROR_PRIVATE_REPOSITORIES`.                                                                                                          |
+| MIRROR_PRIVATE_REPOSITORIES | no       | FALSE   | If set to `true` your private GitHub Repositories will be mirrored to Gitea. Requires `GITHUB_TOKEN`.                                                                                        |
+| SKIP_FORKS                  | no       | FALSE   | If set to `true` will disable the mirroring of forks from your GitHub User / Organisation.                                                                                                   |
+| DELAY                       | no       | 3600s   | Number of seconds between program executions. Setting this will only affect how soon after a new repo was created a mirror may appar on Gitea, but has no affect on the ongoing replication. |
+| DRY_RUN                     | no       | FALSE   | If set to `true` will perform no writing changes to your Gitea instance, but log the planned actions.                                                                                        |
+
+### Docker
 
 ```sh
-docker run \
+docker container run \
  -d \
  --restart always \
  -e GITHUB_USERNAME=github-user \
@@ -39,68 +57,50 @@ docker run \
  jaedle/mirror-to-gitea:latest
 ```
 
-This will a spin up a docker container which will run forever, mirroring all your repositories once every hour to your gitea server.
+This will a spin up a docker container which will run forever, mirroring all your repositories once every hour to your
+gitea server.
 
 ### Docker Compose
 
 ```yaml
 version: "3.3"
 services:
-    mirror-to-gitea:
-        image: jaedle/mirror-to-gitea:latest
-        restart: unless-stopped
-        environment:
-          - GITHUB_USERNAME=github-user
-          - GITEA_URL=https://your-gitea.url
-          - GITEA_TOKEN=please-exchange-with-token
-          # - GITHUB_TOKEN=please-exchange-with-token # Optional, set to mirror private repos
-          # - MIRROR_PRIVATE_REPOSITORIES=true # Optional, set to mirror private repos
-          # - DELAY=3600 # Optional, set to change the delay between checks (in seconds)
-          # - SKIP_FORKS=true # Optional, set to skip forks
-          # - DRY_RUN=true # Optional, set to only log what would be done
-        container_name: mirror-to-gitea
+  mirror-to-gitea:
+    image: jaedle/mirror-to-gitea:latest
+    restart: unless-stopped
+    container_name: mirror-to-gitea
+    environment:
+      - GITHUB_USERNAME=github-user
+      - GITEA_URL=https://your-gitea.url
+      - GITEA_TOKEN=please-exchange-with-token
 ```
-## Building from Source
+
+## Development
 
 ### Prerequisites
-- NodeJS
-- NPM
 
-### Build
-```sh
-npm install
-```
-If errors occur, try deleting the `package-lock.json` file and run `npm install` again.
+- nodejs
+- [task](https://taskfile.dev)
+- docker
 
-### Build Docker Image
+### Execute verification
+
 ```sh
-docker build -t mirror-to-gitea .
+task world
 ```
 
-### Run With NodeJS
-```sh
-export GITHUB_USERNAME=github-user
-export GITEA_URL=https://your-gitea.url
-export GITEA_TOKEN=please-exchange-with-token
-node src/index.mjs
+### Running locally
+
+Create `.secrets.rc` containing at least the following flags:
+
+```rc
+export GITHUB_USERNAME='...'
+export GITHUB_TOKEN='...'
+export GITEA_URL='...'
 ```
-Also export `GITHUB_TOKEN` and `MIRROR_PRIVATE_REPOSITORIES` if you want to mirror private repos, or `DELAY` if you want to change the delay between checks.
 
-### Run With Docker
-In the above Docker run command, replace `jaedle/mirror-to-gitea:latest` with `mirror-to-gitea`.
-In your Docker Compose file, replace `jaedle/mirror-to-gitea:latest` with `build: .`. Then run `docker compose build` and `docker compose up -d`.
+Execute the script in foreground:
 
-## Parameters
-
-### Required
-- `GITHUB_USERNAME`: The name of your user or organization which public repos should be mirrored
-- `GITEA_URL`: The url of your gitea server
-- `GITEA_TOKEN`: The token for your gitea user (Settings -> Applications -> Generate New Token)
-
-### Optional
-- `GITHUB_TOKEN`: [GitHub personal access token](https://docs.github.com/en/free-pro-team@latest/github/authenticating-to-github/creating-a-personal-access-token). **Attention: if this is set, the token will be transmitted to your specified Gitea instance!**
-- `MIRROR_PRIVATE_REPOSITORIES`: If set to `true` or `1`, your private GitHub repositories will also be mirrored to gitea. The `GITHUB_TOKEN` parameter must be set for this to work.
-- `SKIP_FORKS`: If set to `true` or `1`, forks will NOT be mirrored.
-- `DELAY`: How often to check for new repositories in seconds. Default is 3600 (1 hour).
-- `DRY_RUN`: If set to `true` or `1`, the script will only log what would be done, but not actually create any mirror.
-
+```sh
+task run-local
+```
