@@ -18,9 +18,9 @@
   },
   "homepage": "https://github.com/jaedle/mirror-to-gitea#readme",
   "dependencies": {
-    "@octokit/rest": "^18.0.12",
-    "p-queue": "^6.6.2",
-    "superagent": "^4.0.0"
+    "@octokit/rest": "^21.0.2",
+    "p-queue": "^8.0.1",
+    "superagent": "^10.1.0"
   },
   "devDependencies": {
     "esbuild": "0.24.0"
