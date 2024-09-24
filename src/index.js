@@ -3,30 +3,36 @@ const request = require('superagent');
 const {default: PQueue} = require('p-queue');
 
 
-async function getGithubRepositories(username, token, mirrorPrivateRepositories) {
+async function getGithubRepositories(username, token, mirrorPrivateRepositories, mirrorForks) {
   const octokit = new Octokit({
     auth: token || null,
   });
   
-  const publicRepositoriesWithForks = await octokit.paginate('GET /users/:username/repos', { username: username })
+  const publicRepositories = await octokit.paginate('GET /users/:username/repos', { username: username })
       .then(repositories => toRepositoryList(repositories));
 
-  let allRepositoriesWithoutForks;
-  if(mirrorPrivateRepositories === 'true'){
-  allRepositoriesWithoutForks = await octokit.paginate('GET /user/repos?visibility=public&affiliation=owner&visibility=private')
+  let allOwnedRepositories;
+  if(mirrorPrivateRepositories){
+  allOwnedRepositories = await octokit.paginate('GET /user/repos?visibility=public&affiliation=owner&visibility=private')
     .then(repositories => toRepositoryList(repositories));
   }
 
-  if(mirrorPrivateRepositories === 'true'){
-    return filterDuplicates(allRepositoriesWithoutForks.concat(publicRepositoriesWithForks));
-  }else{
-    return publicRepositoriesWithForks;
+  let repositories = publicRepositories;
+
+  if(mirrorPrivateRepositories) {
+    repositories = filterDuplicates(allOwnedRepositories.concat(publicRepositories));
   }
+
+  if(!mirrorForks){
+    repositories = repositories.filter(repository => !repository.fork);
+  }
+
+  return repositories;
 }
 
 function toRepositoryList(repositories) {
   return repositories.map(repository => {
-    return { name: repository.name, url: repository.clone_url, private: repository.private };
+    return { name: repository.name, url: repository.clone_url, private: repository.private, fork: repository.fork};
   });
 }
 
@@ -80,11 +86,15 @@ function mirrorOnGitea(repository, gitea, giteaUser, githubToken) {
 
 }
 
-async function mirror(repository, gitea, giteaUser, githubToken) {
+async function mirror(repository, gitea, giteaUser, githubToken, dryRun) {
   if (await isAlreadyMirroredOnGitea(repository.name,
     gitea,
     giteaUser)) {
     console.log('Repository is already mirrored; doing nothing: ', repository.name);
+    return;
+  }
+  if (dryRun) {
+    console.log('DRY RUN: Would mirror repository to gitea: ', repository);
     return;
   }
   console.log('Mirroring repository to gitea: ', repository.name);
@@ -97,6 +107,7 @@ async function main() {
     console.error('No GITHUB_USERNAME specified, please specify! Exiting..');
     return;
   }
+  const mirrorForks = ! ['1', 'true'].includes(process.env.SKIP_FORKS);
   const githubToken = process.env.GITHUB_TOKEN;
   const giteaUrl = process.env.GITEA_URL;
 
@@ -111,14 +122,25 @@ async function main() {
     return;
   }
 
-  const mirrorPrivateRepositories = process.env.MIRROR_PRIVATE_REPOSITORIES;
-  if(mirrorPrivateRepositories === 'true' && !githubToken){
+  const mirrorPrivateRepositories = ['1', 'true'].includes(process.env.MIRROR_PRIVATE_REPOSITORIES)
+  if(mirrorPrivateRepositories && !githubToken){
     console.error('MIRROR_PRIVATE_REPOSITORIES was set to true but no GITHUB_TOKEN was specified, please specify! Exiting..')
     return;
   }
 
+  const dryRun = ['1', 'true'].includes(process.env.DRY_RUN);
 
-  const githubRepositories = await getGithubRepositories(githubUsername, githubToken, mirrorPrivateRepositories);
+  console.log("Starting with the following configuration:")
+  console.log(` - GITHUB_USERNAME: ${githubUsername}`);
+  console.log(` - GITHUB_TOKEN: ${githubToken ? '****' : ''}`);
+  console.log(` - GITEA_URL: ${giteaUrl}`);
+  console.log(` - GITEA_TOKEN: ${giteaToken ? '****' : ''}`);
+  console.log(` - MIRROR_PRIVATE_REPOSITORIES: ${mirrorPrivateRepositories}`);
+  console.log(` - SKIP_FORKS: ${!mirrorForks}`);
+  console.log(` - DRY_RUN: ${dryRun}`);
+
+
+  const githubRepositories = await getGithubRepositories(githubUsername, githubToken, mirrorPrivateRepositories, mirrorForks);
   console.log(`Found ${githubRepositories.length} repositories on github`);
 
   const gitea = {
@@ -130,7 +152,7 @@ async function main() {
   const queue = new PQueue({ concurrency: 4 });
   await queue.addAll(githubRepositories.map(repository => {
     return async () => {
-      await mirror(repository, gitea, giteaUser, githubToken);
+      await mirror(repository, gitea, giteaUser, githubToken, dryRun);
     };
   }));
 }
