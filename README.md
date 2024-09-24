@@ -91,7 +91,7 @@ task world
 
 ### Running locally
 
-Create `.secrets.rc` containing at least the following flags:
+Create `.secrets.rc` containing at least the following variables:
 
 ```rc
 export GITHUB_USERNAME='...'
