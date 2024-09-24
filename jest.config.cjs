@@ -1,5 +1,5 @@
 const config = {
-    transform: {},
+	transform: {},
 };
 
 module.exports = config;

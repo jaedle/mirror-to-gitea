@@ -82,7 +82,7 @@ docker build -t mirror-to-gitea .
 export GITHUB_USERNAME=github-user
 export GITEA_URL=https://your-gitea.url
 export GITEA_TOKEN=please-exchange-with-token
-node src/index.cjs
+node src/index.mjs
 ```
 Also export `GITHUB_TOKEN` and `MIRROR_PRIVATE_REPOSITORIES` if you want to mirror private repos, or `DELAY` if you want to change the delay between checks.
 

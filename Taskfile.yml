@@ -5,11 +5,13 @@ tasks:
     aliases: [ default ]
     cmds:
       - task: clean
+      - task: check
       - task: test
       - task: build
 
   run-local: ./run-local.sh
 
   clean: npm run clean
+  check: npm run check
   test: npm run test
   build: npm run build

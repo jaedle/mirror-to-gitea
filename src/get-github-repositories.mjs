@@ -1,5 +1,3 @@
-async function getRepositories(ocotokit, mirrorOptions) {
-
-}
+async function getRepositories(ocotokit, mirrorOptions) {}
 
 export default getRepositories;
