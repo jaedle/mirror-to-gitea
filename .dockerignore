@@ -1,5 +1,6 @@
 .idea/
 .git/
+dist/
 node_modules/
 
 .secrets.rc

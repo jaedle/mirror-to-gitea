@@ -8,7 +8,7 @@ DELAY="${DELAY:-3600}"
 while true
 do
   echo "Starting to create mirrors..."
-  node /app/src/index.js
+  node /app/dist/index.js
 
   echo "Waiting for ${DELAY} seconds..."
   sleep "${DELAY}"
