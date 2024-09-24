@@ -2,5 +2,6 @@
 node_modules/
 .secrets.rc
 .vscode/
+.task/
 
 dist/
