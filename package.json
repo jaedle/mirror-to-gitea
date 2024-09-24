@@ -4,6 +4,7 @@
   "description": "mirror all your public github repositories to your gitea server",
   "main": "index.cjs",
   "scripts": {
+    "clean": "rm -rf dist/",
     "build": "esbuild src/index.cjs --bundle --outdir=dist/ --platform=node",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js"
   },

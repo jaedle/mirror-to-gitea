@@ -1,0 +1,15 @@
+version: '3'
+
+tasks:
+  world:
+    aliases: [ default ]
+    cmds:
+      - task: clean
+      - task: test
+      - task: build
+
+  run-local: ./run-local.sh
+
+  clean: npm run clean
+  test: npm run test
+  build: npm run build
