@@ -1,7 +1,7 @@
 const mustReadEnv = (variable) => {
 	const val = process.env[variable];
 	if (val === undefined || val.length === 0) {
-		throw new Error();
+		throw new Error(`invalid configuration, please provide ${variable}`);
 	}
 
 	return val;
@@ -37,7 +37,9 @@ export function configuration() {
 	};
 
 	if (config.github.privateRepositories && config.github.token === undefined) {
-		throw new Error();
+		throw new Error(
+			"invalid configuration, mirroring private repositories requires setting GITHUB_TOKEN",
+		);
 	}
 
 	return config;

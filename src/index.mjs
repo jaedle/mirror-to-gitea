@@ -1,6 +1,7 @@
 import { Octokit } from "@octokit/rest";
 import PQueue from "p-queue";
 import * as request from "superagent";
+import { configuration } from "./configuration.mjs";
 
 async function getGithubRepositories(
 	username,
@@ -117,58 +118,37 @@ async function mirror(repository, gitea, giteaUser, githubToken, dryRun) {
 }
 
 async function main() {
-	const githubUsername = process.env.GITHUB_USERNAME;
-	if (!githubUsername) {
-		console.error("No GITHUB_USERNAME specified, please specify! Exiting..");
-		return;
+	let config;
+	try {
+		config = configuration();
+	} catch (e) {
+		console.error("invalid configuration", e);
+		process.exit(1);
 	}
-	const mirrorForks = !["1", "true"].includes(process.env.SKIP_FORKS);
-	const githubToken = process.env.GITHUB_TOKEN;
-	const giteaUrl = process.env.GITEA_URL;
-
-	if (!giteaUrl) {
-		console.error("No GITEA_URL specified, please specify! Exiting..");
-		return;
-	}
-
-	const giteaToken = process.env.GITEA_TOKEN;
-	if (!giteaToken) {
-		console.error("No GITEA_TOKEN specified, please specify! Exiting..");
-		return;
-	}
-
-	const mirrorPrivateRepositories = ["1", "true"].includes(
-		process.env.MIRROR_PRIVATE_REPOSITORIES,
-	);
-	if (mirrorPrivateRepositories && !githubToken) {
-		console.error(
-			"MIRROR_PRIVATE_REPOSITORIES was set to true but no GITHUB_TOKEN was specified, please specify! Exiting..",
-		);
-		return;
-	}
-
-	const dryRun = ["1", "true"].includes(process.env.DRY_RUN);
 
 	console.log("Starting with the following configuration:");
-	console.log(` - GITHUB_USERNAME: ${githubUsername}`);
-	console.log(` - GITHUB_TOKEN: ${githubToken ? "****" : ""}`);
-	console.log(` - GITEA_URL: ${giteaUrl}`);
-	console.log(` - GITEA_TOKEN: ${giteaToken ? "****" : ""}`);
-	console.log(` - MIRROR_PRIVATE_REPOSITORIES: ${mirrorPrivateRepositories}`);
-	console.log(` - SKIP_FORKS: ${!mirrorForks}`);
-	console.log(` - DRY_RUN: ${dryRun}`);
+	console.log(` - GITHUB_USERNAME: ${config.github.username}`);
+	console.log(` - GITHUB_TOKEN: ${config.github.token ? "****" : ""}`);
+	console.log(
+		` - MIRROR_PRIVATE_REPOSITORIES: ${config.github.privateRepositories}`,
+	);
+	console.log(` - GITEA_URL: ${config.gitea.url}`);
+	console.log(` - GITEA_TOKEN: ${config.gitea.token ? "****" : ""}`);
+	console.log(` - SKIP_FORKS: ${config.github.skipForks}`);
+	console.log(` - DRY_RUN: ${config.dryRun}`);
 
 	const githubRepositories = await getGithubRepositories(
-		githubUsername,
-		githubToken,
-		mirrorPrivateRepositories,
-		mirrorForks,
+		config.github.username,
+		config.github.token,
+		config.github.privateRepositories,
+		!config.github.skipForks,
 	);
+
 	console.log(`Found ${githubRepositories.length} repositories on github`);
 
 	const gitea = {
-		url: giteaUrl,
-		token: giteaToken,
+		url: config.gitea.url,
+		token: config.gitea.token,
 	};
 	const giteaUser = await getGiteaUser(gitea);
 
@@ -176,7 +156,13 @@ async function main() {
 	await queue.addAll(
 		githubRepositories.map((repository) => {
 			return async () => {
-				await mirror(repository, gitea, giteaUser, githubToken, dryRun);
+				await mirror(
+					repository,
+					gitea,
+					giteaUser,
+					config.github.token,
+					config.dryRun,
+				);
 			};
 		}),
 	);

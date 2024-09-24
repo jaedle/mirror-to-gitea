@@ -51,21 +51,27 @@ describe("configuration", () => {
 		provideMandatoryVariables();
 		delete process.env.GITEA_URL;
 
-		expect(() => configuration()).toThrow();
+		expect(() => configuration()).toThrow(
+			new Error("invalid configuration, please provide GITEA_URL"),
+		);
 	});
 
 	it("requires gitea token", () => {
 		provideMandatoryVariables();
 		delete process.env.GITEA_TOKEN;
 
-		expect(() => configuration()).toThrow();
+		expect(() => configuration()).toThrow(
+			new Error("invalid configuration, please provide GITEA_TOKEN"),
+		);
 	});
 
 	it("requires github username", () => {
 		provideMandatoryVariables();
 		delete process.env.GITHUB_USERNAME;
 
-		expect(() => configuration()).toThrow();
+		expect(() => configuration()).toThrow(
+			new Error("invalid configuration, please provide GITHUB_USERNAME"),
+		);
 	});
 
 	it("reads github token", () => {
@@ -168,7 +174,11 @@ describe("configuration", () => {
 		provideMandatoryVariables();
 		process.env.MIRROR_PRIVATE_REPOSITORIES = "true";
 
-		expect(() => configuration()).toThrow();
+		expect(() => configuration()).toThrow(
+			new Error(
+				"invalid configuration, mirroring private repositories requires setting GITHUB_TOKEN",
+			),
+		);
 	});
 
 	it("parses delay", () => {
