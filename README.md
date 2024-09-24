@@ -32,7 +32,7 @@ private repos, they will be created as private repos on your gitea server.
 
 ### Configuration
 
-All configuration is performed through environment variables.
+All configuration is performed through environment variables. Flags are considered `true` on `true`, `TRUE` or `1`.
 
 | Parameter                   | Required | Default | Description                                                                                                                                                                                  |
 |-----------------------------|----------|---------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
