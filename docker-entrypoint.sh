@@ -10,6 +10,8 @@ do
   echo "Starting to create mirrors..."
   node /app/dist/index.js
 
+  if [ $DELAY -eq 0 ]; then break; fi
+
   echo "Waiting for ${DELAY} seconds..."
   sleep "${DELAY}"
 done
