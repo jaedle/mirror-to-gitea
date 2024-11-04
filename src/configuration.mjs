@@ -1,3 +1,9 @@
+const readEnv = (variable) => {
+	const val = process.env[variable];
+	if (val === undefined || val.length === 0) return undefined;
+	return val;
+};
+
 const mustReadEnv = (variable) => {
 	const val = process.env[variable];
 	if (val === undefined || val.length === 0) {
@@ -21,6 +27,8 @@ function readInt(variable) {
 
 export function configuration() {
 	const defaultDelay = 3600;
+	const defaultInclude = "*";
+	const defaultExclude = "";
 	const config = {
 		github: {
 			username: mustReadEnv("GITHUB_USERNAME"),
@@ -34,6 +42,8 @@ export function configuration() {
 		},
 		dryRun: readBoolean("DRY_RUN"),
 		delay: readInt("DELAY") ?? defaultDelay,
+		include: (readEnv("INCLUDE") ?? defaultInclude).split(",").map(f => f.trim()),
+		exclude: (readEnv("EXCLUDE") ?? defaultExclude).split(",").map(f => f.trim()),
 	};
 
 	if (config.github.privateRepositories && config.github.token === undefined) {
