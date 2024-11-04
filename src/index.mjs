@@ -1,6 +1,7 @@
 import { Octokit } from "@octokit/rest";
+import { minimatch } from "minimatch";
 import PQueue from "p-queue";
-import * as request from "superagent";
+import request from "superagent";
 import { configuration } from "./configuration.mjs";
 
 async function getGithubRepositories(
@@ -8,6 +9,8 @@ async function getGithubRepositories(
 	token,
 	mirrorPrivateRepositories,
 	mirrorForks,
+	include,
+	exclude,
 ) {
 	const octokit = new Octokit({
 		auth: token || null,
@@ -37,6 +40,12 @@ async function getGithubRepositories(
 	if (!mirrorForks) {
 		repositories = repositories.filter((repository) => !repository.fork);
 	}
+
+	repositories = repositories.filter(
+		(repository) =>
+			include.some((f) => minimatch(repository.name, f)) &&
+			!exclude.some((f) => minimatch(repository.name, f)),
+	);
 
 	return repositories;
 }
@@ -136,12 +145,16 @@ async function main() {
 	console.log(` - GITEA_TOKEN: ${config.gitea.token ? "****" : ""}`);
 	console.log(` - SKIP_FORKS: ${config.github.skipForks}`);
 	console.log(` - DRY_RUN: ${config.dryRun}`);
+	console.log(` - INCLUDE: ${config.include}`);
+	console.log(` - EXCLUDE: ${config.exclude}`);
 
 	const githubRepositories = await getGithubRepositories(
 		config.github.username,
 		config.github.token,
 		config.github.privateRepositories,
 		!config.github.skipForks,
+		config.include,
+		config.exclude,
 	);
 
 	console.log(`Found ${githubRepositories.length} repositories on github`);
