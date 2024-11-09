@@ -44,6 +44,7 @@ export function configuration() {
 		delay: readInt("DELAY") ?? defaultDelay,
 		include: (readEnv("INCLUDE") ?? defaultInclude).split(",").map(f => f.trim()),
 		exclude: (readEnv("EXCLUDE") ?? defaultExclude).split(",").map(f => f.trim()),
+		singleRun: readBoolean("SINGLE_RUN"),
 	};
 
 	if (config.github.privateRepositories && config.github.token === undefined) {
