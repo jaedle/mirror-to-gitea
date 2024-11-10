@@ -35,6 +35,7 @@ jobs:
       with:
         context: ./
         file: ./Dockerfile
+        platforms: linux/amd64,linux/arm64
         builder: ${{ steps.buildx.outputs.name }}
         push: true
         tags: ${{ secrets.DOCKERHUB_USER }}/${{ env.IMAGE_NAME }}:latest
