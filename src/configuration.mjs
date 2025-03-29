@@ -42,8 +42,12 @@ export function configuration() {
 		},
 		dryRun: readBoolean("DRY_RUN"),
 		delay: readInt("DELAY") ?? defaultDelay,
-		include: (readEnv("INCLUDE") ?? defaultInclude).split(",").map(f => f.trim()),
-		exclude: (readEnv("EXCLUDE") ?? defaultExclude).split(",").map(f => f.trim()),
+		include: (readEnv("INCLUDE") ?? defaultInclude)
+			.split(",")
+			.map((f) => f.trim()),
+		exclude: (readEnv("EXCLUDE") ?? defaultExclude)
+			.split(",")
+			.map((f) => f.trim()),
 		singleRun: readBoolean("SINGLE_RUN"),
 	};
 
