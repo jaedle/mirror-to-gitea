@@ -27,6 +27,7 @@
 		"@types/jest": "^29.5.13",
 		"minimatch": "^10.0.1",
 		"p-queue": "^8.0.1",
+		"pino": "^9.6.0",
 		"superagent": "^10.1.0"
 	},
 	"devDependencies": {

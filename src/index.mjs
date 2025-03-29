@@ -3,6 +3,7 @@ import { minimatch } from "minimatch";
 import PQueue from "p-queue";
 import request from "superagent";
 import { configuration } from "./configuration.mjs";
+import { Logger } from "./logger.js";
 
 async function getGithubRepositories(
 	username,
@@ -135,18 +136,8 @@ async function main() {
 		process.exit(1);
 	}
 
-	console.log("Starting with the following configuration:");
-	console.log(` - GITHUB_USERNAME: ${config.github.username}`);
-	console.log(` - GITHUB_TOKEN: ${config.github.token ? "****" : ""}`);
-	console.log(
-		` - MIRROR_PRIVATE_REPOSITORIES: ${config.github.privateRepositories}`,
-	);
-	console.log(` - GITEA_URL: ${config.gitea.url}`);
-	console.log(` - GITEA_TOKEN: ${config.gitea.token ? "****" : ""}`);
-	console.log(` - SKIP_FORKS: ${config.github.skipForks}`);
-	console.log(` - DRY_RUN: ${config.dryRun}`);
-	console.log(` - INCLUDE: ${config.include}`);
-	console.log(` - EXCLUDE: ${config.exclude}`);
+	const logger = new Logger();
+	logger.showConfig(config);
 
 	const githubRepositories = await getGithubRepositories(
 		config.github.username,
