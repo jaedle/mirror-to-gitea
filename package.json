@@ -14,8 +14,8 @@
 		"url": "git+https://github.com/jaedle/mirror-to-gitea.git"
 	},
 	"keywords": [],
-	"author": "",
-	"license": "ISC",
+	"author": "Dennis Wielepsky",
+	"license": "MIT",
 	"bugs": {
 		"url": "https://github.com/jaedle/mirror-to-gitea/issues"
 	},
