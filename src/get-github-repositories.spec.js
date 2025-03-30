@@ -79,4 +79,86 @@ describe("get-github-repositories", () => {
 			{ name: "repo3", url: "clone-url-of-repo3", private: false, fork: false },
 		]);
 	});
+
+	it("includes private repositories for user", async () => {
+		const moctokit = new Moctokit();
+		moctokit.rest.repos.listForUser({ username: "jaedle" }).reply({
+			status: 200,
+			data: [
+				{
+					name: "public-repo-1",
+					clone_url: "clone-url-of-public-repo-1",
+					private: false,
+					fork: false,
+				},
+				{
+					name: "public-repo-2",
+					clone_url: "clone-url-of-public-repo-2",
+					private: false,
+					fork: false,
+				},
+			],
+		});
+
+		moctokit.rest.repos
+			.listForAuthenticatedUser({
+				affiliation: "owner",
+				visibility: "private",
+			})
+			.reply({
+				status: 200,
+				data: [
+					{
+						name: "private-repo-1",
+						clone_url: "clone-url-of-private-repo-1",
+						private: true,
+						fork: false,
+					},
+					{
+						name: "private-repo-2",
+						clone_url: "clone-url-of-private-repo-2",
+						private: true,
+						fork: false,
+					},
+				],
+			});
+
+		const result = await get(
+			new Octokit({
+				auth: "a-github-token",
+			}),
+			{
+				username: "jaedle",
+				privateRepositories: true,
+				skipForks: false,
+			},
+		);
+
+		expect(result).toEqual([
+			{
+				name: "public-repo-1",
+				url: "clone-url-of-public-repo-1",
+				private: false,
+				fork: false,
+			},
+			{
+				name: "public-repo-2",
+				url: "clone-url-of-public-repo-2",
+				private: false,
+				fork: false,
+			},
+			{
+				name: "private-repo-1",
+				url: "clone-url-of-private-repo-1",
+				private: true,
+				fork: false,
+			},
+			{
+				name: "private-repo-2",
+				url: "clone-url-of-private-repo-2",
+				private: true,
+				fork: false,
+			},
+		]);
+	});
 });

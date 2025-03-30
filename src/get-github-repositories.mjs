@@ -1,13 +1,33 @@
 async function getRepositories(octokit, mirrorOptions) {
-	const repos = await octokit
-		.paginate("GET /users/:username/repos", { username: "jaedle" })
+	const publicRepositories = await fetchPublicRepositories(
+		octokit,
+		mirrorOptions.username,
+	);
+	const privateRepos = mirrorOptions.privateRepositories
+		? await fetchPrivateRepositories(octokit)
+		: [];
+	const repos = [...publicRepositories, ...privateRepos];
+
+	return mirrorOptions.skipForks ? withoutForks(repos) : repos;
+}
+
+async function fetchPublicRepositories(octokit, username) {
+	return octokit
+		.paginate("GET /users/:username/repos", { username })
 		.then(toRepositoryList);
+}
 
-	if (mirrorOptions.skipForks) {
-		return repos.filter((repo) => !repo.fork);
-	}
+async function fetchPrivateRepositories(octokit) {
+	return octokit
+		.paginate("GET /user/repos", {
+			affiliation: "owner",
+			visibility: "private",
+		})
+		.then(toRepositoryList);
+}
 
-	return repos;
+function withoutForks(repositories) {
+	return repositories.filter((repo) => !repo.fork);
 }
 
 function toRepositoryList(repositories) {
