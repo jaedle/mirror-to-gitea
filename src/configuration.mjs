@@ -49,12 +49,14 @@ export function configuration() {
 				.map((o) => o.trim())
 				.filter((o) => o.length > 0),
 			preserveOrgStructure: readBoolean("PRESERVE_ORG_STRUCTURE"),
+			skipStarredIssues: readBoolean("SKIP_STARRED_ISSUES"),
 		},
 		gitea: {
 			url: mustReadEnv("GITEA_URL"),
 			token: mustReadEnv("GITEA_TOKEN"),
 			organization: readEnv("GITEA_ORGANIZATION"),
 			visibility: readEnv("GITEA_ORG_VISIBILITY") || "public",
+			starredReposOrg: readEnv("GITEA_STARRED_ORGANIZATION") || "github",
 		},
 		dryRun: readBoolean("DRY_RUN"),
 		delay: readInt("DELAY") ?? defaultDelay,

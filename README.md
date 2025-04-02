@@ -60,6 +60,8 @@ All configuration is performed through environment variables. Flags are consider
 | SINGLE_REPO                 | no       | string | -       | URL of a single GitHub repository to mirror (e.g., https://github.com/username/repo or username/repo). When specified, only this repository will be mirrored. Requires `GITHUB_TOKEN`.                 |
 | GITEA_ORGANIZATION          | no       | string | -       | Name of a Gitea organization to mirror repositories to. If doesn't exist, will be created.                                                                                                             |
 | GITEA_ORG_VISIBILITY        | no       | string | public  | Visibility of the Gitea organization to create. Can be "public" or "private".                                                                                                                          |
+| GITEA_STARRED_ORGANIZATION  | no       | string | github  | Name of a Gitea organization to mirror starred repositories to. If doesn't exist, will be created. Defaults to "github".                                                                               |
+| SKIP_STARRED_ISSUES         | no       | bool   | FALSE   | If set to `true` will not mirror issues for starred repositories, even if `MIRROR_ISSUES` is enabled.                                                                                                  |
 | SKIP_FORKS                  | no       | bool   | FALSE   | If set to `true` will disable the mirroring of forks from your GitHub User / Organisation.                                                                                                             |
 | DELAY                       | no       | int    | 3600    | Number of seconds between program executions. Setting this will only affect how soon after a new repo was created a mirror may appear on Gitea, but has no affect on the ongoing replication.           |
 | DRY_RUN                     | no       | bool   | FALSE   | If set to `true` will perform no writing changes to your Gitea instance, but log the planned actions.                                                                                                  |
@@ -142,6 +144,24 @@ docker container run \
  -e GITEA_ORG_VISIBILITY=private \
  jaedle/mirror-to-gitea:latest
 ```
+
+### Mirror Starred Repositories to a Dedicated Organization
+
+```sh
+docker container run \
+ -d \
+ --restart always \
+ -e GITHUB_USERNAME=github-user \
+ -e GITEA_URL=https://your-gitea.url \
+ -e GITEA_TOKEN=please-exchange-with-token \
+ -e GITHUB_TOKEN=your-github-token \
+ -e MIRROR_STARRED=true \
+ -e GITEA_STARRED_ORGANIZATION=github \
+ -e SKIP_STARRED_ISSUES=true \
+ jaedle/mirror-to-gitea:latest
+```
+
+This configuration will mirror all starred repositories to a Gitea organization named "github" and will not mirror issues for these starred repositories.
 
 ### Docker Compose
 

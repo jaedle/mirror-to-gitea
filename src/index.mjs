@@ -30,6 +30,19 @@ async function main() {
 			config.dryRun
 		);
 	}
+	
+	// Create the starred repositories organization if mirror starred is enabled
+	if (config.github.mirrorStarred && config.gitea.starredReposOrg) {
+		await createGiteaOrganization(
+			{
+				url: config.gitea.url,
+				token: config.gitea.token,
+			},
+			config.gitea.starredReposOrg,
+			config.gitea.visibility,
+			config.dryRun
+		);
+	}
 
 	const octokit = new Octokit({
 		auth: config.github.token || null,
@@ -127,7 +140,12 @@ async function main() {
 				
 				await mirror(
 					repository,
-					gitea,
+					{
+						url: config.gitea.url,
+						token: config.gitea.token,
+						skipStarredIssues: config.github.skipStarredIssues,
+						starredReposOrg: config.gitea.starredReposOrg
+					},
 					giteaTarget,
 					config.github.token,
 					config.github.mirrorIssues,
@@ -365,6 +383,18 @@ async function mirrorIssues(repository, gitea, giteaTarget, githubToken, dryRun)
 
 // Mirror a repository
 async function mirror(repository, gitea, giteaTarget, githubToken, mirrorIssuesFlag, dryRun) {
+	// For starred repositories, use the starred repos organization if configured
+	if (repository.starred && gitea.starredReposOrg) {
+		// Get the starred repos organization
+		const starredOrg = await getGiteaOrganization(gitea, gitea.starredReposOrg);
+		if (starredOrg) {
+			console.log(`Using organization "${gitea.starredReposOrg}" for starred repository: ${repository.name}`);
+			giteaTarget = starredOrg;
+		} else {
+			console.log(`Could not find organization "${gitea.starredReposOrg}" for starred repositories, using default target`);
+		}
+	}
+
 	const isAlreadyMirrored = await isAlreadyMirroredOnGitea(repository, gitea, giteaTarget);
 	
 	// Special handling for starred repositories
@@ -395,8 +425,14 @@ async function mirror(repository, gitea, giteaTarget, githubToken, mirrorIssuesF
 		}
 		
 		// Mirror issues if requested and not in dry run mode
-		if (mirrorIssuesFlag && !dryRun) {
+		// Skip issues for starred repos if the skipStarredIssues option is enabled
+		const shouldMirrorIssues = mirrorIssuesFlag && 
+			!(repository.starred && gitea.skipStarredIssues);
+			
+		if (shouldMirrorIssues && !dryRun) {
 			await mirrorIssues(repository, gitea, giteaTarget, githubToken, dryRun);
+		} else if (repository.starred && gitea.skipStarredIssues) {
+			console.log(`Skipping issues for starred repository: ${repository.name}`);
 		}
 	} catch (error) {
 		console.error(`Error during mirroring of ${repository.name}:`, error.message);
