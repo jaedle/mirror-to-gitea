@@ -111,13 +111,13 @@ async function fetchStarredRepositories(octokit, options = {}) {
 					'X-GitHub-Api-Version': '2022-11-28'
 				}
 			})
-			.then(toRepositoryList);
+			.then(repos => toRepositoryList(repos.map(repo => ({...repo, starred: true}))));
 	}
 	
 	// Default: Get starred repos for the authenticated user (what was previously used)
 	return octokit
 		.paginate("GET /user/starred")
-		.then(toRepositoryList);
+		.then(repos => toRepositoryList(repos.map(repo => ({...repo, starred: true}))));
 }
 
 async function fetchOrganizationRepositories(octokit, includeOrgs = [], excludeOrgs = [], preserveOrgStructure = false, options = {}) {
@@ -217,6 +217,11 @@ function toRepositoryList(repositories, preserveOrgStructure = false) {
 		// Add organization context if it exists and preserveOrgStructure is enabled
 		if (preserveOrgStructure && repository.organization) {
 			repoInfo.organization = repository.organization;
+		}
+		
+		// Preserve starred status if present
+		if (repository.starred) {
+			repoInfo.starred = true;
 		}
 		
 		return repoInfo;

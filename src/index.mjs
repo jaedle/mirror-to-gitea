@@ -365,21 +365,34 @@ async function mirrorIssues(repository, gitea, giteaTarget, githubToken, dryRun)
 
 // Mirror a repository
 async function mirror(repository, gitea, giteaTarget, githubToken, mirrorIssuesFlag, dryRun) {
-	if (await isAlreadyMirroredOnGitea(repository, gitea, giteaTarget)) {
-		console.log(
-			`Repository ${repository.name} is already mirrored in ${giteaTarget.type} ${giteaTarget.name}; doing nothing.`
-		);
-		return;
-	}
+	const isAlreadyMirrored = await isAlreadyMirroredOnGitea(repository, gitea, giteaTarget);
 	
-	if (dryRun) {
+	// Special handling for starred repositories
+	if (repository.starred) {
+		if (isAlreadyMirrored) {
+			console.log(`Repository ${repository.name} is already mirrored in ${giteaTarget.type} ${giteaTarget.name}; checking if it needs to be starred.`);
+			await starRepositoryInGitea(repository, gitea, giteaTarget, dryRun);
+			return;
+		} else if (dryRun) {
+			console.log(`DRY RUN: Would mirror and star repository to ${giteaTarget.type} ${giteaTarget.name}: ${repository.name} (starred)`);
+			return;
+		}
+	} else if (isAlreadyMirrored) {
+		console.log(`Repository ${repository.name} is already mirrored in ${giteaTarget.type} ${giteaTarget.name}; doing nothing.`);
+		return;
+	} else if (dryRun) {
 		console.log(`DRY RUN: Would mirror repository to ${giteaTarget.type} ${giteaTarget.name}: ${repository.name}`);
 		return;
 	}
 	
-	console.log(`Mirroring repository to ${giteaTarget.type} ${giteaTarget.name}: ${repository.name}`);
+	console.log(`Mirroring repository to ${giteaTarget.type} ${giteaTarget.name}: ${repository.name}${repository.starred ? ' (will be starred)' : ''}`);
 	try {
 		await mirrorOnGitea(repository, gitea, giteaTarget, githubToken);
+		
+		// Star the repository if it's marked as starred
+		if (repository.starred) {
+			await starRepositoryInGitea(repository, gitea, giteaTarget, dryRun);
+		}
 		
 		// Mirror issues if requested and not in dry run mode
 		if (mirrorIssuesFlag && !dryRun) {
@@ -387,6 +400,29 @@ async function mirror(repository, gitea, giteaTarget, githubToken, mirrorIssuesF
 		}
 	} catch (error) {
 		console.error(`Error during mirroring of ${repository.name}:`, error.message);
+	}
+}
+
+// Star a repository in Gitea
+async function starRepositoryInGitea(repository, gitea, giteaTarget, dryRun) {
+	const ownerName = giteaTarget.name;
+	const repoName = repository.name;
+	
+	if (dryRun) {
+		console.log(`DRY RUN: Would star repository in Gitea: ${ownerName}/${repoName}`);
+		return true;
+	}
+	
+	try {
+		await request
+			.put(`${gitea.url}/api/v1/user/starred/${ownerName}/${repoName}`)
+			.set("Authorization", `token ${gitea.token}`);
+		
+		console.log(`Successfully starred repository in Gitea: ${ownerName}/${repoName}`);
+		return true;
+	} catch (error) {
+		console.error(`Error starring repository ${ownerName}/${repoName}:`, error.message);
+		return false;
 	}
 }
 
