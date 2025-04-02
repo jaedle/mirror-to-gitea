@@ -24,7 +24,12 @@ async function getRepositories(octokit, mirrorOptions) {
 		
 		// Fetch organization repos if the option is enabled
 		const orgRepos = mirrorOptions.mirrorOrganizations
-			? await fetchOrganizationRepositories(octokit)
+			? await fetchOrganizationRepositories(
+				octokit, 
+				mirrorOptions.includeOrgs, 
+				mirrorOptions.excludeOrgs,
+				mirrorOptions.preserveOrgStructure
+			)
 			: [];
 		
 		// Combine all repositories and filter duplicates
@@ -99,20 +104,49 @@ async function fetchStarredRepositories(octokit) {
 		.then(toRepositoryList);
 }
 
-async function fetchOrganizationRepositories(octokit) {
+async function fetchOrganizationRepositories(octokit, includeOrgs = [], excludeOrgs = [], preserveOrgStructure = false) {
 	try {
 		// First get all organizations the user belongs to
-		const orgs = await octokit.paginate("GET /user/orgs");
+		const allOrgs = await octokit.paginate("GET /user/orgs");
+		
+		// Filter organizations based on include/exclude lists
+		let orgsToProcess = allOrgs;
+		
+		if (includeOrgs.length > 0) {
+			// Only include specific organizations
+			orgsToProcess = orgsToProcess.filter(org => 
+				includeOrgs.includes(org.login)
+			);
+		}
+		
+		if (excludeOrgs.length > 0) {
+			// Exclude specific organizations
+			orgsToProcess = orgsToProcess.filter(org => 
+				!excludeOrgs.includes(org.login)
+			);
+		}
+		
+		console.log(`Processing repositories from ${orgsToProcess.length} organizations`);
 		
 		// Then fetch repositories for each organization
-		const orgRepoPromises = orgs.map(org => 
+		const orgRepoPromises = orgsToProcess.map(org => 
 			octokit.paginate("GET /orgs/{org}/repos", { org: org.login })
+				.then(repos => {
+					// Add organization context to each repository if preserveOrgStructure is enabled
+					if (preserveOrgStructure) {
+						return repos.map(repo => ({
+							...repo,
+							organization: org.login
+						}));
+					}
+					return repos;
+				})
 		);
 		
 		// Wait for all requests to complete and flatten the results
 		const orgRepos = await Promise.all(orgRepoPromises)
 			.then(repoArrays => repoArrays.flat())
-			.then(toRepositoryList);
+			.then(repos => toRepositoryList(repos, preserveOrgStructure));
 		
 		return orgRepos;
 	} catch (error) {
@@ -139,9 +173,9 @@ function filterDuplicates(repositories) {
 	return unique;
 }
 
-function toRepositoryList(repositories) {
+function toRepositoryList(repositories, preserveOrgStructure = false) {
 	return repositories.map((repository) => {
-		return {
+		const repoInfo = {
 			name: repository.name,
 			url: repository.clone_url,
 			private: repository.private,
@@ -150,6 +184,13 @@ function toRepositoryList(repositories) {
 			full_name: repository.full_name,
 			has_issues: repository.has_issues,
 		};
+		
+		// Add organization context if it exists and preserveOrgStructure is enabled
+		if (preserveOrgStructure && repository.organization) {
+			repoInfo.organization = repository.organization;
+		}
+		
+		return repoInfo;
 	});
 }
 

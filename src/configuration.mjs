@@ -39,6 +39,15 @@ export function configuration() {
 			mirrorStarred: readBoolean("MIRROR_STARRED"),
 			mirrorOrganizations: readBoolean("MIRROR_ORGANIZATIONS"),
 			singleRepo: readEnv("SINGLE_REPO"),
+			includeOrgs: (readEnv("INCLUDE_ORGS") || "")
+				.split(",")
+				.map((o) => o.trim())
+				.filter((o) => o.length > 0),
+			excludeOrgs: (readEnv("EXCLUDE_ORGS") || "")
+				.split(",")
+				.map((o) => o.trim())
+				.filter((o) => o.length > 0),
+			preserveOrgStructure: readBoolean("PRESERVE_ORG_STRUCTURE"),
 		},
 		gitea: {
 			url: mustReadEnv("GITEA_URL"),

@@ -43,6 +43,9 @@ async function main() {
 		mirrorStarred: config.github.mirrorStarred,
 		mirrorOrganizations: config.github.mirrorOrganizations,
 		singleRepo: config.github.singleRepo,
+		includeOrgs: config.github.includeOrgs,
+		excludeOrgs: config.github.excludeOrgs,
+		preserveOrgStructure: config.github.preserveOrgStructure,
 	});
 
 	// Apply include/exclude filters
@@ -59,14 +62,43 @@ async function main() {
 		token: config.gitea.token,
 	};
 
-	// Get Gitea user or organization ID
-	const giteaTarget = config.gitea.organization 
-		? await getGiteaOrganization(gitea, config.gitea.organization)
-		: await getGiteaUser(gitea);
-
-	if (!giteaTarget) {
-		console.error("Failed to get Gitea user or organization. Exiting.");
+	// Get Gitea user information
+	const giteaUser = await getGiteaUser(gitea);
+	if (!giteaUser) {
+		console.error("Failed to get Gitea user. Exiting.");
 		process.exit(1);
+	}
+
+	// Create a map to store organization targets if preserving structure
+	const orgTargets = new Map();
+	if (config.github.preserveOrgStructure) {
+		// Get unique organization names from repositories
+		const uniqueOrgs = new Set(
+			filteredRepositories
+				.filter(repo => repo.organization)
+				.map(repo => repo.organization)
+		);
+		
+		// Create or get each organization in Gitea
+		for (const orgName of uniqueOrgs) {
+			console.log(`Preparing Gitea organization for GitHub organization: ${orgName}`);
+			
+			// Create the organization if it doesn't exist
+			await createGiteaOrganization(
+				gitea,
+				orgName,
+				config.gitea.visibility,
+				config.dryRun
+			);
+			
+			// Get the organization details
+			const orgTarget = await getGiteaOrganization(gitea, orgName);
+			if (orgTarget) {
+				orgTargets.set(orgName, orgTarget);
+			} else {
+				console.error(`Failed to get or create Gitea organization: ${orgName}`);
+			}
+		}
 	}
 
 	// Mirror repositories
@@ -74,6 +106,25 @@ async function main() {
 	await queue.addAll(
 		filteredRepositories.map((repository) => {
 			return async () => {
+				// Determine the target (user or organization)
+				let giteaTarget;
+				
+				if (config.github.preserveOrgStructure && repository.organization) {
+					// Use the organization as target
+					giteaTarget = orgTargets.get(repository.organization);
+					if (!giteaTarget) {
+						console.error(`No Gitea organization found for ${repository.organization}, using user instead`);
+						giteaTarget = config.gitea.organization 
+							? await getGiteaOrganization(gitea, config.gitea.organization)
+							: giteaUser;
+					}
+				} else {
+					// Use the specified organization or user
+					giteaTarget = config.gitea.organization 
+						? await getGiteaOrganization(gitea, config.gitea.organization)
+						: giteaUser;
+				}
+				
 				await mirror(
 					repository,
 					gitea,
@@ -316,17 +367,17 @@ async function mirrorIssues(repository, gitea, giteaTarget, githubToken, dryRun)
 async function mirror(repository, gitea, giteaTarget, githubToken, mirrorIssuesFlag, dryRun) {
 	if (await isAlreadyMirroredOnGitea(repository, gitea, giteaTarget)) {
 		console.log(
-			`Repository ${repository.name} is already mirrored; doing nothing.`
+			`Repository ${repository.name} is already mirrored in ${giteaTarget.type} ${giteaTarget.name}; doing nothing.`
 		);
 		return;
 	}
 	
 	if (dryRun) {
-		console.log(`DRY RUN: Would mirror repository to gitea: ${repository.name}`);
+		console.log(`DRY RUN: Would mirror repository to ${giteaTarget.type} ${giteaTarget.name}: ${repository.name}`);
 		return;
 	}
 	
-	console.log(`Mirroring repository to gitea: ${repository.name}`);
+	console.log(`Mirroring repository to ${giteaTarget.type} ${giteaTarget.name}: ${repository.name}`);
 	try {
 		await mirrorOnGitea(repository, gitea, giteaTarget, githubToken);
 		

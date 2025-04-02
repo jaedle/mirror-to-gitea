@@ -25,6 +25,8 @@ Additionally, you can now mirror:
 - Issues from GitHub repositories (including labels)
 - Starred repositories from your GitHub account
 - Repositories from organizations you belong to
+  - Filter which organizations to include or exclude
+  - Maintain original organization structure in Gitea
 - A single repository instead of all repositories
 - Repositories to a specific Gitea organization
 
@@ -51,6 +53,9 @@ All configuration is performed through environment variables. Flags are consider
 | MIRROR_ISSUES               | no       | bool   | FALSE   | If set to `true` the issues of your GitHub repositories will be mirrored to Gitea. Requires `GITHUB_TOKEN`.                                                                                           |
 | MIRROR_STARRED              | no       | bool   | FALSE   | If set to `true` repositories you've starred on GitHub will be mirrored to Gitea. Requires `GITHUB_TOKEN`.                                                                                             |
 | MIRROR_ORGANIZATIONS        | no       | bool   | FALSE   | If set to `true` repositories from organizations you belong to will be mirrored to Gitea. Requires `GITHUB_TOKEN`.                                                                                     |
+| INCLUDE_ORGS                | no       | string | ""      | Comma-separated list of GitHub organization names to include when mirroring organizations. If not specified, all organizations will be included.                                                        |
+| EXCLUDE_ORGS                | no       | string | ""      | Comma-separated list of GitHub organization names to exclude when mirroring organizations. Takes precedence over `INCLUDE_ORGS`.                                                                       |
+| PRESERVE_ORG_STRUCTURE      | no       | bool   | FALSE   | If set to `true`, each GitHub organization will be mirrored to a Gitea organization with the same name. If the organization doesn't exist, it will be created.                                         |
 | SINGLE_REPO                 | no       | string | -       | URL of a single GitHub repository to mirror (e.g., https://github.com/username/repo or username/repo). When specified, only this repository will be mirrored. Requires `GITHUB_TOKEN`.                 |
 | GITEA_ORGANIZATION          | no       | string | -       | Name of a Gitea organization to mirror repositories to. If doesn't exist, will be created.                                                                                                             |
 | GITEA_ORG_VISIBILITY        | no       | string | public  | Visibility of the Gitea organization to create. Can be "public" or "private".                                                                                                                          |
@@ -74,6 +79,37 @@ docker container run \
  -e MIRROR_ISSUES=true \
  -e MIRROR_STARRED=true \
  -e MIRROR_ORGANIZATIONS=true \
+ jaedle/mirror-to-gitea:latest
+```
+
+### Mirror Only Specific Organizations
+
+```sh
+docker container run \
+ -d \
+ --restart always \
+ -e GITHUB_USERNAME=github-user \
+ -e GITEA_URL=https://your-gitea.url \
+ -e GITEA_TOKEN=please-exchange-with-token \
+ -e GITHUB_TOKEN=your-github-token \
+ -e MIRROR_ORGANIZATIONS=true \
+ -e INCLUDE_ORGS=org1,org2,org3 \
+ jaedle/mirror-to-gitea:latest
+```
+
+### Mirror Organizations with Preserved Structure
+
+```sh
+docker container run \
+ -d \
+ --restart always \
+ -e GITHUB_USERNAME=github-user \
+ -e GITEA_URL=https://your-gitea.url \
+ -e GITEA_TOKEN=please-exchange-with-token \
+ -e GITHUB_TOKEN=your-github-token \
+ -e MIRROR_ORGANIZATIONS=true \
+ -e PRESERVE_ORG_STRUCTURE=true \
+ -e GITEA_ORG_VISIBILITY=private \
  jaedle/mirror-to-gitea:latest
 ```
 
@@ -123,6 +159,11 @@ services:
       - MIRROR_ISSUES=true
       - MIRROR_STARRED=true
       - MIRROR_ORGANIZATIONS=true
+      # Organization specific options
+      # - INCLUDE_ORGS=org1,org2
+      # - EXCLUDE_ORGS=org3,org4
+      # - PRESERVE_ORG_STRUCTURE=true
+      # Other options
       # - SINGLE_REPO=https://github.com/organization/repository
       # - GITEA_ORGANIZATION=my-organization
       # - GITEA_ORG_VISIBILITY=public
@@ -154,6 +195,9 @@ export GITEA_TOKEN='...'
 export MIRROR_ISSUES='true'
 export MIRROR_STARRED='true'
 export MIRROR_ORGANIZATIONS='true'
+# export INCLUDE_ORGS='org1,org2'
+# export EXCLUDE_ORGS='org3,org4'
+# export PRESERVE_ORG_STRUCTURE='true'
 # export SINGLE_REPO='https://github.com/user/repo'
 # export GITEA_ORGANIZATION='my-organization'
 # export GITEA_ORG_VISIBILITY='public'
