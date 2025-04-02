@@ -4,12 +4,15 @@ import PQueue from "p-queue";
 import request from "superagent";
 import { configuration } from "./configuration.mjs";
 import { Logger } from "./logger.js";
+import getGithubRepositories from "./get-github-repositories.mjs";
 
 async function getGithubRepositories(
 	username,
 	token,
 	mirrorPrivateRepositories,
 	mirrorForks,
+	mirrorStarred,
+	mirrorOrganizations,
 	include,
 	exclude,
 ) {
@@ -17,60 +20,46 @@ async function getGithubRepositories(
 		auth: token || null,
 	});
 
-	const publicRepositories = await octokit
-		.paginate("GET /users/:username/repos", { username: username })
-		.then((repositories) => toRepositoryList(repositories));
+	const repositories = await getGithubRepositories(octokit, {
+		username,
+		privateRepositories: mirrorPrivateRepositories,
+		skipForks: !mirrorForks,
+		mirrorStarred,
+		mirrorOrganizations,
+	});
 
-	let allOwnedRepositories;
-	if (mirrorPrivateRepositories) {
-		allOwnedRepositories = await octokit
-			.paginate(
-				"GET /user/repos?visibility=public&affiliation=owner&visibility=private",
-			)
-			.then((repositories) => toRepositoryList(repositories));
-	}
-
-	let repositories = publicRepositories;
-
-	if (mirrorPrivateRepositories) {
-		repositories = filterDuplicates(
-			allOwnedRepositories.concat(publicRepositories),
-		);
-	}
-
-	if (!mirrorForks) {
-		repositories = repositories.filter((repository) => !repository.fork);
-	}
-
-	repositories = repositories.filter(
+	return repositories.filter(
 		(repository) =>
 			include.some((f) => minimatch(repository.name, f)) &&
 			!exclude.some((f) => minimatch(repository.name, f)),
 	);
-
-	return repositories;
 }
 
-function toRepositoryList(repositories) {
-	return repositories.map((repository) => {
-		return {
-			name: repository.name,
-			url: repository.clone_url,
-			private: repository.private,
-			fork: repository.fork,
-		};
-	});
-}
+// Fetch issues for a given repository
+async function getGithubIssues(octokit, owner, repo) {
+	try {
+		const issues = await octokit.paginate("GET /repos/{owner}/{repo}/issues", {
+			owner,
+			repo,
+			state: "all",
+			per_page: 100,
+		});
 
-function filterDuplicates(array) {
-	const a = array.concat();
-	for (let i = 0; i < a.length; ++i) {
-		for (let j = i + 1; j < a.length; ++j) {
-			if (a[i].url === a[j].url) a.splice(j--, 1);
-		}
+		return issues.map(issue => ({
+			title: issue.title,
+			body: issue.body || "",
+			state: issue.state,
+			labels: issue.labels.map(label => label.name),
+			closed: issue.state === "closed",
+			created_at: issue.created_at,
+			updated_at: issue.updated_at,
+			number: issue.number,
+			user: issue.user.login,
+		}));
+	} catch (error) {
+		console.error(`Error fetching issues for ${owner}/${repo}:`, error.message);
+		return [];
 	}
-
-	return a;
 }
 
 async function getGiteaUser(gitea) {
@@ -83,7 +72,10 @@ async function getGiteaUser(gitea) {
 }
 
 function isAlreadyMirroredOnGitea(repository, gitea, giteaUser) {
-	const requestUrl = `${gitea.url}/api/v1/repos/${giteaUser.name}/${repository}`;
+	const repoName = repository.name;
+	const ownerName = giteaUser.name;
+	const requestUrl = `${gitea.url}/api/v1/repos/${ownerName}/${repoName}`;
+	
 	return request
 		.get(requestUrl)
 		.set("Authorization", `token ${gitea.token}`)
@@ -92,7 +84,7 @@ function isAlreadyMirroredOnGitea(repository, gitea, giteaUser) {
 }
 
 function mirrorOnGitea(repository, gitea, giteaUser, githubToken) {
-	request
+	return request
 		.post(`${gitea.url}/api/v1/repos/migrate`)
 		.set("Authorization", `token ${gitea.token}`)
 		.send({
@@ -103,16 +95,98 @@ function mirrorOnGitea(repository, gitea, giteaUser, githubToken) {
 			uid: giteaUser.id,
 			private: repository.private,
 		})
-		.then(() => {
-			console.log("Did it!");
+		.then((response) => {
+			console.log(`Successfully mirrored: ${repository.name}`);
+			return response.body;
 		})
 		.catch((err) => {
-			console.log("Failed", err);
+			console.log(`Failed to mirror ${repository.name}:`, err.message);
+			throw err;
 		});
 }
 
-async function mirror(repository, gitea, giteaUser, githubToken, dryRun) {
-	if (await isAlreadyMirroredOnGitea(repository.name, gitea, giteaUser)) {
+// Create an issue in a Gitea repository
+async function createGiteaIssue(issue, repository, gitea, giteaUser) {
+	try {
+		const response = await request
+			.post(`${gitea.url}/api/v1/repos/${giteaUser.name}/${repository.name}/issues`)
+			.set("Authorization", `token ${gitea.token}`)
+			.send({
+				title: issue.title,
+				body: `*Originally created by @${issue.user} on ${new Date(issue.created_at).toLocaleDateString()}*\n\n${issue.body}`,
+				state: issue.state,
+				closed: issue.closed,
+			});
+		
+		console.log(`Created issue #${response.body.number}: ${issue.title}`);
+		
+		// Add labels if the issue has any
+		if (issue.labels && issue.labels.length > 0) {
+			await Promise.all(issue.labels.map(async (label) => {
+				try {
+					// First try to create the label if it doesn't exist
+					await request
+						.post(`${gitea.url}/api/v1/repos/${giteaUser.name}/${repository.name}/labels`)
+						.set("Authorization", `token ${gitea.token}`)
+						.send({
+							name: label,
+							color: "#" + Math.floor(Math.random() * 16777215).toString(16), // Random color
+						})
+						.catch(() => {
+							// Label might already exist, which is fine
+						});
+					
+					// Then add the label to the issue
+					await request
+						.post(`${gitea.url}/api/v1/repos/${giteaUser.name}/${repository.name}/issues/${response.body.number}/labels`)
+						.set("Authorization", `token ${gitea.token}`)
+						.send({
+							labels: [label]
+						});
+				} catch (labelError) {
+					console.error(`Error adding label ${label} to issue:`, labelError.message);
+				}
+			}));
+		}
+		
+		return response.body;
+	} catch (error) {
+		console.error(`Error creating issue "${issue.title}":`, error.message);
+		return null;
+	}
+}
+
+async function mirrorIssues(repository, gitea, giteaUser, githubToken, dryRun) {
+	if (!repository.has_issues) {
+		console.log(`Repository ${repository.name} doesn't have issues enabled. Skipping issues mirroring.`);
+		return;
+	}
+
+	if (dryRun) {
+		console.log(`DRY RUN: Would mirror issues for repository: ${repository.name}`);
+		return;
+	}
+
+	try {
+		const octokit = new Octokit({ auth: githubToken });
+		const owner = repository.owner || repository.full_name.split('/')[0];
+		const issues = await getGithubIssues(octokit, owner, repository.name);
+		
+		console.log(`Found ${issues.length} issues for ${repository.name}`);
+		
+		// Create issues one by one to maintain order
+		for (const issue of issues) {
+			await createGiteaIssue(issue, repository, gitea, giteaUser);
+		}
+		
+		console.log(`Completed mirroring issues for ${repository.name}`);
+	} catch (error) {
+		console.error(`Error mirroring issues for ${repository.name}:`, error.message);
+	}
+}
+
+async function mirror(repository, gitea, giteaUser, githubToken, mirrorIssues, dryRun) {
+	if (await isAlreadyMirroredOnGitea(repository, gitea, giteaUser)) {
 		console.log(
 			"Repository is already mirrored; doing nothing: ",
 			repository.name,
@@ -124,7 +198,16 @@ async function mirror(repository, gitea, giteaUser, githubToken, dryRun) {
 		return;
 	}
 	console.log("Mirroring repository to gitea: ", repository.name);
-	await mirrorOnGitea(repository, gitea, giteaUser, githubToken);
+	try {
+		await mirrorOnGitea(repository, gitea, giteaUser, githubToken);
+		
+		// Mirror issues if requested and not in dry run mode
+		if (mirrorIssues && !dryRun) {
+			await mirrorIssues(repository, gitea, giteaUser, githubToken, dryRun);
+		}
+	} catch (error) {
+		console.error(`Error during mirroring of ${repository.name}:`, error.message);
+	}
 }
 
 async function main() {
@@ -144,6 +227,8 @@ async function main() {
 		config.github.token,
 		config.github.privateRepositories,
 		!config.github.skipForks,
+		config.github.mirrorStarred,
+		config.github.mirrorOrganizations,
 		config.include,
 		config.exclude,
 	);
@@ -165,6 +250,7 @@ async function main() {
 					gitea,
 					giteaUser,
 					config.github.token,
+					config.github.mirrorIssues,
 					config.dryRun,
 				);
 			};

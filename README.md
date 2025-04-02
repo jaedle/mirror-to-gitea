@@ -21,6 +21,11 @@ The mirror settings are default by your gitea instance.
 It is also possible to mirror private repos, which can be configred here in [#parameters](#parameters). When mirroring
 private repos, they will be created as private repos on your gitea server.
 
+Additionally, you can now mirror:
+- Issues from GitHub repositories (including labels)
+- Starred repositories from your GitHub account
+- Repositories from organizations you belong to
+
 ## Prerequisites
 
 - A github user or organization with repositories
@@ -39,8 +44,11 @@ All configuration is performed through environment variables. Flags are consider
 | GITHUB_USERNAME             | yes      | string | -       | The name of the GitHub user or organisation to mirror.                                                                                                                                                 |
 | GITEA_URL                   | yes      | string | -       | The url of your Gitea server.                                                                                                                                                                          |
 | GITEA_TOKEN                 | yes      | string | -       | The token for your gitea user (Settings -> Applications -> Generate New Token). **Attention: if this is set, the token will be transmitted to your specified Gitea instance!**                         |
-| GITHUB_TOKEN                | no*      | string | -       | GitHub token (PAT). Is mandatory in combination with `MIRROR_PRIVATE_REPOSITORIES`.                                                                                                                    |
+| GITHUB_TOKEN                | no*      | string | -       | GitHub token (PAT). Is mandatory in combination with `MIRROR_PRIVATE_REPOSITORIES`, `MIRROR_ISSUES`, `MIRROR_STARRED`, or `MIRROR_ORGANIZATIONS`.                                                      |
 | MIRROR_PRIVATE_REPOSITORIES | no       | bool   | FALSE   | If set to `true` your private GitHub Repositories will be mirrored to Gitea. Requires `GITHUB_TOKEN`.                                                                                                  |
+| MIRROR_ISSUES               | no       | bool   | FALSE   | If set to `true` the issues of your GitHub repositories will be mirrored to Gitea. Requires `GITHUB_TOKEN`.                                                                                           |
+| MIRROR_STARRED              | no       | bool   | FALSE   | If set to `true` repositories you've starred on GitHub will be mirrored to Gitea. Requires `GITHUB_TOKEN`.                                                                                             |
+| MIRROR_ORGANIZATIONS        | no       | bool   | FALSE   | If set to `true` repositories from organizations you belong to will be mirrored to Gitea. Requires `GITHUB_TOKEN`.                                                                                     |
 | SKIP_FORKS                  | no       | bool   | FALSE   | If set to `true` will disable the mirroring of forks from your GitHub User / Organisation.                                                                                                             |
 | DELAY                       | no       | int    | 3600    | Number of seconds between program executions. Setting this will only affect how soon after a new repo was created a mirror may appar on Gitea, but has no affect on the ongoing replication. |
 | DRY_RUN                     | no       | bool   | FALSE   | If set to `true` will perform no writing changes to your Gitea instance, but log the planned actions.                                                                                                  |
@@ -57,6 +65,10 @@ docker container run \
  -e GITHUB_USERNAME=github-user \
  -e GITEA_URL=https://your-gitea.url \
  -e GITEA_TOKEN=please-exchange-with-token \
+ -e GITHUB_TOKEN=your-github-token \
+ -e MIRROR_ISSUES=true \
+ -e MIRROR_STARRED=true \
+ -e MIRROR_ORGANIZATIONS=true \
  jaedle/mirror-to-gitea:latest
 ```
 
@@ -76,6 +88,10 @@ services:
       - GITHUB_USERNAME=github-user
       - GITEA_URL=https://your-gitea.url
       - GITEA_TOKEN=please-exchange-with-token
+      - GITHUB_TOKEN=your-github-token
+      - MIRROR_ISSUES=true
+      - MIRROR_STARRED=true
+      - MIRROR_ORGANIZATIONS=true
 ```
 
 ## Development
@@ -100,6 +116,10 @@ Create `.secrets.rc` containing at least the following variables:
 export GITHUB_USERNAME='...'
 export GITHUB_TOKEN='...'
 export GITEA_URL='...'
+export GITEA_TOKEN='...'
+export MIRROR_ISSUES='true'
+export MIRROR_STARRED='true'
+export MIRROR_ORGANIZATIONS='true'
 ```
 
 Execute the script in foreground:

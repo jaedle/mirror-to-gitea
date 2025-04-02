@@ -35,6 +35,9 @@ export function configuration() {
 			token: process.env.GITHUB_TOKEN,
 			skipForks: readBoolean("SKIP_FORKS"),
 			privateRepositories: readBoolean("MIRROR_PRIVATE_REPOSITORIES"),
+			mirrorIssues: readBoolean("MIRROR_ISSUES"),
+			mirrorStarred: readBoolean("MIRROR_STARRED"),
+			mirrorOrganizations: readBoolean("MIRROR_ORGANIZATIONS"),
 		},
 		gitea: {
 			url: mustReadEnv("GITEA_URL"),
@@ -54,6 +57,14 @@ export function configuration() {
 	if (config.github.privateRepositories && config.github.token === undefined) {
 		throw new Error(
 			"invalid configuration, mirroring private repositories requires setting GITHUB_TOKEN",
+		);
+	}
+
+	// GitHub token is required for mirroring issues, starred repos, and orgs
+	if ((config.github.mirrorIssues || config.github.mirrorStarred || config.github.mirrorOrganizations) 
+		&& config.github.token === undefined) {
+		throw new Error(
+			"invalid configuration, mirroring issues, starred repositories, or organizations requires setting GITHUB_TOKEN",
 		);
 	}
 
