@@ -25,6 +25,8 @@ Additionally, you can now mirror:
 - Issues from GitHub repositories (including labels)
 - Starred repositories from your GitHub account
 - Repositories from organizations you belong to
+- A single repository instead of all repositories
+- Repositories to a specific Gitea organization
 
 ## Prerequisites
 
@@ -44,13 +46,16 @@ All configuration is performed through environment variables. Flags are consider
 | GITHUB_USERNAME             | yes      | string | -       | The name of the GitHub user or organisation to mirror.                                                                                                                                                 |
 | GITEA_URL                   | yes      | string | -       | The url of your Gitea server.                                                                                                                                                                          |
 | GITEA_TOKEN                 | yes      | string | -       | The token for your gitea user (Settings -> Applications -> Generate New Token). **Attention: if this is set, the token will be transmitted to your specified Gitea instance!**                         |
-| GITHUB_TOKEN                | no*      | string | -       | GitHub token (PAT). Is mandatory in combination with `MIRROR_PRIVATE_REPOSITORIES`, `MIRROR_ISSUES`, `MIRROR_STARRED`, or `MIRROR_ORGANIZATIONS`.                                                      |
+| GITHUB_TOKEN                | no*      | string | -       | GitHub token (PAT). Is mandatory in combination with `MIRROR_PRIVATE_REPOSITORIES`, `MIRROR_ISSUES`, `MIRROR_STARRED`, `MIRROR_ORGANIZATIONS`, or `SINGLE_REPO`.                                       |
 | MIRROR_PRIVATE_REPOSITORIES | no       | bool   | FALSE   | If set to `true` your private GitHub Repositories will be mirrored to Gitea. Requires `GITHUB_TOKEN`.                                                                                                  |
 | MIRROR_ISSUES               | no       | bool   | FALSE   | If set to `true` the issues of your GitHub repositories will be mirrored to Gitea. Requires `GITHUB_TOKEN`.                                                                                           |
 | MIRROR_STARRED              | no       | bool   | FALSE   | If set to `true` repositories you've starred on GitHub will be mirrored to Gitea. Requires `GITHUB_TOKEN`.                                                                                             |
 | MIRROR_ORGANIZATIONS        | no       | bool   | FALSE   | If set to `true` repositories from organizations you belong to will be mirrored to Gitea. Requires `GITHUB_TOKEN`.                                                                                     |
+| SINGLE_REPO                 | no       | string | -       | URL of a single GitHub repository to mirror (e.g., https://github.com/username/repo or username/repo). When specified, only this repository will be mirrored. Requires `GITHUB_TOKEN`.                 |
+| GITEA_ORGANIZATION          | no       | string | -       | Name of a Gitea organization to mirror repositories to. If doesn't exist, will be created.                                                                                                             |
+| GITEA_ORG_VISIBILITY        | no       | string | public  | Visibility of the Gitea organization to create. Can be "public" or "private".                                                                                                                          |
 | SKIP_FORKS                  | no       | bool   | FALSE   | If set to `true` will disable the mirroring of forks from your GitHub User / Organisation.                                                                                                             |
-| DELAY                       | no       | int    | 3600    | Number of seconds between program executions. Setting this will only affect how soon after a new repo was created a mirror may appar on Gitea, but has no affect on the ongoing replication. |
+| DELAY                       | no       | int    | 3600    | Number of seconds between program executions. Setting this will only affect how soon after a new repo was created a mirror may appear on Gitea, but has no affect on the ongoing replication.           |
 | DRY_RUN                     | no       | bool   | FALSE   | If set to `true` will perform no writing changes to your Gitea instance, but log the planned actions.                                                                                                  |
 | INCLUDE                     | no       | string | "*"     | Name based repository filter (include): If any filter matches, the repository will be mirrored. It supports glob format, multiple filters can be separated with commas (`,`)                           |
 | EXCLUDE                     | no       | string | ""      | Name based repository filter (exclude). If any filter matches, the repository will not be mirrored. It supports glob format, multiple filters can be separated with commas (`,`). `EXCLUDE` filters are applied after `INCLUDE` ones. 
@@ -72,8 +77,34 @@ docker container run \
  jaedle/mirror-to-gitea:latest
 ```
 
-This will a spin up a docker container which will run forever, mirroring all your repositories once every hour to your
-gitea server.
+### Mirror a Single Repository
+
+```sh
+docker container run \
+ -d \
+ --restart always \
+ -e GITHUB_USERNAME=github-user \
+ -e GITEA_URL=https://your-gitea.url \
+ -e GITEA_TOKEN=please-exchange-with-token \
+ -e GITHUB_TOKEN=your-github-token \
+ -e SINGLE_REPO=https://github.com/organization/repository \
+ jaedle/mirror-to-gitea:latest
+```
+
+### Mirror to a Gitea Organization
+
+```sh
+docker container run \
+ -d \
+ --restart always \
+ -e GITHUB_USERNAME=github-user \
+ -e GITEA_URL=https://your-gitea.url \
+ -e GITEA_TOKEN=please-exchange-with-token \
+ -e GITHUB_TOKEN=your-github-token \
+ -e GITEA_ORGANIZATION=my-organization \
+ -e GITEA_ORG_VISIBILITY=private \
+ jaedle/mirror-to-gitea:latest
+```
 
 ### Docker Compose
 
@@ -92,6 +123,9 @@ services:
       - MIRROR_ISSUES=true
       - MIRROR_STARRED=true
       - MIRROR_ORGANIZATIONS=true
+      # - SINGLE_REPO=https://github.com/organization/repository
+      # - GITEA_ORGANIZATION=my-organization
+      # - GITEA_ORG_VISIBILITY=public
 ```
 
 ## Development
@@ -120,6 +154,9 @@ export GITEA_TOKEN='...'
 export MIRROR_ISSUES='true'
 export MIRROR_STARRED='true'
 export MIRROR_ORGANIZATIONS='true'
+# export SINGLE_REPO='https://github.com/user/repo'
+# export GITEA_ORGANIZATION='my-organization'
+# export GITEA_ORG_VISIBILITY='public'
 ```
 
 Execute the script in foreground:

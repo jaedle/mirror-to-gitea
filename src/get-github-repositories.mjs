@@ -1,31 +1,81 @@
 async function getRepositories(octokit, mirrorOptions) {
-	const publicRepositories = await fetchPublicRepositories(
-		octokit,
-		mirrorOptions.username,
-	);
-	const privateRepos = mirrorOptions.privateRepositories
-		? await fetchPrivateRepositories(octokit)
-		: [];
+	let repositories = [];
 	
-	// Fetch starred repos if the option is enabled
-	const starredRepos = mirrorOptions.mirrorStarred
-		? await fetchStarredRepositories(octokit)
-		: [];
-	
-	// Fetch organization repos if the option is enabled
-	const orgRepos = mirrorOptions.mirrorOrganizations
-		? await fetchOrganizationRepositories(octokit)
-		: [];
-	
-	// Combine all repositories and filter duplicates
-	const repos = filterDuplicates([
-		...publicRepositories, 
-		...privateRepos,
-		...starredRepos,
-		...orgRepos
-	]);
+	// Check if we're mirroring a single repo
+	if (mirrorOptions.singleRepo) {
+		const singleRepo = await fetchSingleRepository(octokit, mirrorOptions.singleRepo);
+		if (singleRepo) {
+			repositories.push(singleRepo);
+		}
+	} else {
+		// Standard mirroring logic
+		const publicRepositories = await fetchPublicRepositories(
+			octokit,
+			mirrorOptions.username,
+		);
+		const privateRepos = mirrorOptions.privateRepositories
+			? await fetchPrivateRepositories(octokit)
+			: [];
+		
+		// Fetch starred repos if the option is enabled
+		const starredRepos = mirrorOptions.mirrorStarred
+			? await fetchStarredRepositories(octokit)
+			: [];
+		
+		// Fetch organization repos if the option is enabled
+		const orgRepos = mirrorOptions.mirrorOrganizations
+			? await fetchOrganizationRepositories(octokit)
+			: [];
+		
+		// Combine all repositories and filter duplicates
+		repositories = filterDuplicates([
+			...publicRepositories, 
+			...privateRepos,
+			...starredRepos,
+			...orgRepos
+		]);
+	}
 
-	return mirrorOptions.skipForks ? withoutForks(repos) : repos;
+	return mirrorOptions.skipForks ? withoutForks(repositories) : repositories;
+}
+
+async function fetchSingleRepository(octokit, repoUrl) {
+	try {
+		// Remove URL prefix if present and clean up
+		let repoPath = repoUrl;
+		if (repoPath.startsWith('https://github.com/')) {
+			repoPath = repoPath.replace('https://github.com/', '');
+		}
+		if (repoPath.endsWith('.git')) {
+			repoPath = repoPath.slice(0, -4);
+		}
+		
+		// Split into owner and repo
+		const [owner, repo] = repoPath.split('/');
+		if (!owner || !repo) {
+			console.error(`Invalid repository URL format: ${repoUrl}`);
+			return null;
+		}
+		
+		// Fetch the repository details
+		const response = await octokit.rest.repos.get({
+			owner,
+			repo
+		});
+		
+		return {
+			name: response.data.name,
+			url: response.data.clone_url,
+			private: response.data.private,
+			fork: response.data.fork,
+			owner: response.data.owner.login,
+			full_name: response.data.full_name,
+			has_issues: response.data.has_issues,
+		};
+	} catch (error) {
+		console.error(`Error fetching single repository ${repoUrl}:`, error.message);
+		return null;
+	}
 }
 
 async function fetchPublicRepositories(octokit, username) {
@@ -50,20 +100,25 @@ async function fetchStarredRepositories(octokit) {
 }
 
 async function fetchOrganizationRepositories(octokit) {
-	// First get all organizations the user belongs to
-	const orgs = await octokit.paginate("GET /user/orgs");
-	
-	// Then fetch repositories for each organization
-	const orgRepoPromises = orgs.map(org => 
-		octokit.paginate("GET /orgs/{org}/repos", { org: org.login })
-	);
-	
-	// Wait for all requests to complete and flatten the results
-	const orgRepos = await Promise.all(orgRepoPromises)
-		.then(repoArrays => repoArrays.flat())
-		.then(toRepositoryList);
-	
-	return orgRepos;
+	try {
+		// First get all organizations the user belongs to
+		const orgs = await octokit.paginate("GET /user/orgs");
+		
+		// Then fetch repositories for each organization
+		const orgRepoPromises = orgs.map(org => 
+			octokit.paginate("GET /orgs/{org}/repos", { org: org.login })
+		);
+		
+		// Wait for all requests to complete and flatten the results
+		const orgRepos = await Promise.all(orgRepoPromises)
+			.then(repoArrays => repoArrays.flat())
+			.then(toRepositoryList);
+		
+		return orgRepos;
+	} catch (error) {
+		console.error("Error fetching organization repositories:", error.message);
+		return [];
+	}
 }
 
 function withoutForks(repositories) {

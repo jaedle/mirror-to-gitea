@@ -6,36 +6,205 @@ import { configuration } from "./configuration.mjs";
 import { Logger } from "./logger.js";
 import getGithubRepositories from "./get-github-repositories.mjs";
 
-async function getGithubRepositories(
-	username,
-	token,
-	mirrorPrivateRepositories,
-	mirrorForks,
-	mirrorStarred,
-	mirrorOrganizations,
-	include,
-	exclude,
-) {
+async function main() {
+	let config;
+	try {
+		config = configuration();
+	} catch (e) {
+		console.error("invalid configuration", e);
+		process.exit(1);
+	}
+
+	const logger = new Logger();
+	logger.showConfig(config);
+
+	// Create Gitea organization if specified
+	if (config.gitea.organization) {
+		await createGiteaOrganization(
+			{
+				url: config.gitea.url,
+				token: config.gitea.token,
+			},
+			config.gitea.organization,
+			config.gitea.visibility,
+			config.dryRun
+		);
+	}
+
 	const octokit = new Octokit({
-		auth: token || null,
+		auth: config.github.token || null,
 	});
 
-	const repositories = await getGithubRepositories(octokit, {
-		username,
-		privateRepositories: mirrorPrivateRepositories,
-		skipForks: !mirrorForks,
-		mirrorStarred,
-		mirrorOrganizations,
+	// Get user or organization repositories
+	const githubRepositories = await getGithubRepositories(octokit, {
+		username: config.github.username,
+		privateRepositories: config.github.privateRepositories,
+		skipForks: config.github.skipForks,
+		mirrorStarred: config.github.mirrorStarred,
+		mirrorOrganizations: config.github.mirrorOrganizations,
+		singleRepo: config.github.singleRepo,
 	});
 
-	return repositories.filter(
+	// Apply include/exclude filters
+	const filteredRepositories = githubRepositories.filter(
 		(repository) =>
-			include.some((f) => minimatch(repository.name, f)) &&
-			!exclude.some((f) => minimatch(repository.name, f)),
+			config.include.some((f) => minimatch(repository.name, f)) &&
+			!config.exclude.some((f) => minimatch(repository.name, f)),
+	);
+
+	console.log(`Found ${filteredRepositories.length} repositories to mirror`);
+
+	const gitea = {
+		url: config.gitea.url,
+		token: config.gitea.token,
+	};
+
+	// Get Gitea user or organization ID
+	const giteaTarget = config.gitea.organization 
+		? await getGiteaOrganization(gitea, config.gitea.organization)
+		: await getGiteaUser(gitea);
+
+	if (!giteaTarget) {
+		console.error("Failed to get Gitea user or organization. Exiting.");
+		process.exit(1);
+	}
+
+	// Mirror repositories
+	const queue = new PQueue({ concurrency: 4 });
+	await queue.addAll(
+		filteredRepositories.map((repository) => {
+			return async () => {
+				await mirror(
+					repository,
+					gitea,
+					giteaTarget,
+					config.github.token,
+					config.github.mirrorIssues,
+					config.dryRun,
+				);
+			};
+		}),
 	);
 }
 
-// Fetch issues for a given repository
+// Get Gitea user information
+async function getGiteaUser(gitea) {
+	try {
+		const response = await request
+			.get(`${gitea.url}/api/v1/user`)
+			.set("Authorization", `token ${gitea.token}`);
+		
+		return { 
+			id: response.body.id, 
+			name: response.body.username,
+			type: "user"
+		};
+	} catch (error) {
+		console.error("Error fetching Gitea user:", error.message);
+		return null;
+	}
+}
+
+// Get Gitea organization information
+async function getGiteaOrganization(gitea, orgName) {
+	try {
+		const response = await request
+			.get(`${gitea.url}/api/v1/orgs/${orgName}`)
+			.set("Authorization", `token ${gitea.token}`);
+		
+		return { 
+			id: response.body.id, 
+			name: orgName,
+			type: "organization"
+		};
+	} catch (error) {
+		console.error(`Error fetching Gitea organization ${orgName}:`, error.message);
+		return null;
+	}
+}
+
+// Create a Gitea organization
+async function createGiteaOrganization(gitea, orgName, visibility, dryRun) {
+	if (dryRun) {
+		console.log(`DRY RUN: Would create Gitea organization: ${orgName} (${visibility})`);
+		return true;
+	}
+
+	try {
+		// First check if organization already exists
+		try {
+			const existingOrg = await request
+				.get(`${gitea.url}/api/v1/orgs/${orgName}`)
+				.set("Authorization", `token ${gitea.token}`);
+			
+			console.log(`Organization ${orgName} already exists`);
+			return true;
+		} catch (checkError) {
+			// Organization doesn't exist, continue to create it
+		}
+
+		const response = await request
+			.post(`${gitea.url}/api/v1/orgs`)
+			.set("Authorization", `token ${gitea.token}`)
+			.send({
+				username: orgName,
+				visibility: visibility || "public",
+			});
+		
+		console.log(`Created organization: ${orgName}`);
+		return true;
+	} catch (error) {
+		// 422 error typically means the organization already exists
+		if (error.status === 422) {
+			console.log(`Organization ${orgName} already exists`);
+			return true;
+		}
+		
+		console.error(`Error creating Gitea organization ${orgName}:`, error.message);
+		return false;
+	}
+}
+
+// Check if repository is already mirrored
+async function isAlreadyMirroredOnGitea(repository, gitea, giteaTarget) {
+	const repoName = repository.name;
+	const ownerName = giteaTarget.name;
+	const requestUrl = `${gitea.url}/api/v1/repos/${ownerName}/${repoName}`;
+	
+	try {
+		await request
+			.get(requestUrl)
+			.set("Authorization", `token ${gitea.token}`);
+		return true;
+	} catch (error) {
+		return false;
+	}
+}
+
+// Mirror repository to Gitea
+async function mirrorOnGitea(repository, gitea, giteaTarget, githubToken) {
+	try {
+		const response = await request
+			.post(`${gitea.url}/api/v1/repos/migrate`)
+			.set("Authorization", `token ${gitea.token}`)
+			.send({
+				auth_token: githubToken || null,
+				clone_addr: repository.url,
+				mirror: true,
+				repo_name: repository.name,
+				uid: giteaTarget.id,
+				private: repository.private,
+			});
+		
+		console.log(`Successfully mirrored: ${repository.name}`);
+		return response.body;
+	} catch (error) {
+		console.error(`Failed to mirror ${repository.name}:`, error.message);
+		throw error;
+	}
+}
+
+// Fetch issues for a repository
 async function getGithubIssues(octokit, owner, repo) {
 	try {
 		const issues = await octokit.paginate("GET /repos/{owner}/{repo}/issues", {
@@ -62,54 +231,11 @@ async function getGithubIssues(octokit, owner, repo) {
 	}
 }
 
-async function getGiteaUser(gitea) {
-	return request
-		.get(`${gitea.url}/api/v1/user`)
-		.set("Authorization", `token ${gitea.token}`)
-		.then((response) => {
-			return { id: response.body.id, name: response.body.username };
-		});
-}
-
-function isAlreadyMirroredOnGitea(repository, gitea, giteaUser) {
-	const repoName = repository.name;
-	const ownerName = giteaUser.name;
-	const requestUrl = `${gitea.url}/api/v1/repos/${ownerName}/${repoName}`;
-	
-	return request
-		.get(requestUrl)
-		.set("Authorization", `token ${gitea.token}`)
-		.then(() => true)
-		.catch(() => false);
-}
-
-function mirrorOnGitea(repository, gitea, giteaUser, githubToken) {
-	return request
-		.post(`${gitea.url}/api/v1/repos/migrate`)
-		.set("Authorization", `token ${gitea.token}`)
-		.send({
-			auth_token: githubToken || null,
-			clone_addr: repository.url,
-			mirror: true,
-			repo_name: repository.name,
-			uid: giteaUser.id,
-			private: repository.private,
-		})
-		.then((response) => {
-			console.log(`Successfully mirrored: ${repository.name}`);
-			return response.body;
-		})
-		.catch((err) => {
-			console.log(`Failed to mirror ${repository.name}:`, err.message);
-			throw err;
-		});
-}
-
 // Create an issue in a Gitea repository
-async function createGiteaIssue(issue, repository, gitea, giteaUser) {
+async function createGiteaIssue(issue, repository, gitea, giteaTarget) {
 	try {
 		const response = await request
-			.post(`${gitea.url}/api/v1/repos/${giteaUser.name}/${repository.name}/issues`)
+			.post(`${gitea.url}/api/v1/repos/${giteaTarget.name}/${repository.name}/issues`)
 			.set("Authorization", `token ${gitea.token}`)
 			.send({
 				title: issue.title,
@@ -126,7 +252,7 @@ async function createGiteaIssue(issue, repository, gitea, giteaUser) {
 				try {
 					// First try to create the label if it doesn't exist
 					await request
-						.post(`${gitea.url}/api/v1/repos/${giteaUser.name}/${repository.name}/labels`)
+						.post(`${gitea.url}/api/v1/repos/${giteaTarget.name}/${repository.name}/labels`)
 						.set("Authorization", `token ${gitea.token}`)
 						.send({
 							name: label,
@@ -138,7 +264,7 @@ async function createGiteaIssue(issue, repository, gitea, giteaUser) {
 					
 					// Then add the label to the issue
 					await request
-						.post(`${gitea.url}/api/v1/repos/${giteaUser.name}/${repository.name}/issues/${response.body.number}/labels`)
+						.post(`${gitea.url}/api/v1/repos/${giteaTarget.name}/${repository.name}/issues/${response.body.number}/labels`)
 						.set("Authorization", `token ${gitea.token}`)
 						.send({
 							labels: [label]
@@ -156,7 +282,8 @@ async function createGiteaIssue(issue, repository, gitea, giteaUser) {
 	}
 }
 
-async function mirrorIssues(repository, gitea, giteaUser, githubToken, dryRun) {
+// Mirror issues for a repository
+async function mirrorIssues(repository, gitea, giteaTarget, githubToken, dryRun) {
 	if (!repository.has_issues) {
 		console.log(`Repository ${repository.name} doesn't have issues enabled. Skipping issues mirroring.`);
 		return;
@@ -176,7 +303,7 @@ async function mirrorIssues(repository, gitea, giteaUser, githubToken, dryRun) {
 		
 		// Create issues one by one to maintain order
 		for (const issue of issues) {
-			await createGiteaIssue(issue, repository, gitea, giteaUser);
+			await createGiteaIssue(issue, repository, gitea, giteaTarget);
 		}
 		
 		console.log(`Completed mirroring issues for ${repository.name}`);
@@ -185,77 +312,34 @@ async function mirrorIssues(repository, gitea, giteaUser, githubToken, dryRun) {
 	}
 }
 
-async function mirror(repository, gitea, giteaUser, githubToken, mirrorIssues, dryRun) {
-	if (await isAlreadyMirroredOnGitea(repository, gitea, giteaUser)) {
+// Mirror a repository
+async function mirror(repository, gitea, giteaTarget, githubToken, mirrorIssuesFlag, dryRun) {
+	if (await isAlreadyMirroredOnGitea(repository, gitea, giteaTarget)) {
 		console.log(
-			"Repository is already mirrored; doing nothing: ",
-			repository.name,
+			`Repository ${repository.name} is already mirrored; doing nothing.`
 		);
 		return;
 	}
+	
 	if (dryRun) {
-		console.log("DRY RUN: Would mirror repository to gitea: ", repository);
+		console.log(`DRY RUN: Would mirror repository to gitea: ${repository.name}`);
 		return;
 	}
-	console.log("Mirroring repository to gitea: ", repository.name);
+	
+	console.log(`Mirroring repository to gitea: ${repository.name}`);
 	try {
-		await mirrorOnGitea(repository, gitea, giteaUser, githubToken);
+		await mirrorOnGitea(repository, gitea, giteaTarget, githubToken);
 		
 		// Mirror issues if requested and not in dry run mode
-		if (mirrorIssues && !dryRun) {
-			await mirrorIssues(repository, gitea, giteaUser, githubToken, dryRun);
+		if (mirrorIssuesFlag && !dryRun) {
+			await mirrorIssues(repository, gitea, giteaTarget, githubToken, dryRun);
 		}
 	} catch (error) {
 		console.error(`Error during mirroring of ${repository.name}:`, error.message);
 	}
 }
 
-async function main() {
-	let config;
-	try {
-		config = configuration();
-	} catch (e) {
-		console.error("invalid configuration", e);
-		process.exit(1);
-	}
-
-	const logger = new Logger();
-	logger.showConfig(config);
-
-	const githubRepositories = await getGithubRepositories(
-		config.github.username,
-		config.github.token,
-		config.github.privateRepositories,
-		!config.github.skipForks,
-		config.github.mirrorStarred,
-		config.github.mirrorOrganizations,
-		config.include,
-		config.exclude,
-	);
-
-	console.log(`Found ${githubRepositories.length} repositories on github`);
-
-	const gitea = {
-		url: config.gitea.url,
-		token: config.gitea.token,
-	};
-	const giteaUser = await getGiteaUser(gitea);
-
-	const queue = new PQueue({ concurrency: 4 });
-	await queue.addAll(
-		githubRepositories.map((repository) => {
-			return async () => {
-				await mirror(
-					repository,
-					gitea,
-					giteaUser,
-					config.github.token,
-					config.github.mirrorIssues,
-					config.dryRun,
-				);
-			};
-		}),
-	);
-}
-
-main();
+main().catch(error => {
+	console.error("Application error:", error);
+	process.exit(1);
+});
