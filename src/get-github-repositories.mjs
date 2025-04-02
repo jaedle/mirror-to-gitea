@@ -31,7 +31,10 @@ async function getRepositories(octokit, mirrorOptions) {
 				mirrorOptions.includeOrgs, 
 				mirrorOptions.excludeOrgs,
 				mirrorOptions.preserveOrgStructure,
-				{ username: mirrorOptions.useSpecificUser ? mirrorOptions.username : undefined }
+				{ 
+					username: mirrorOptions.useSpecificUser ? mirrorOptions.username : undefined,
+					privateRepositories: mirrorOptions.privateRepositories
+				}
 			)
 			: [];
 		
@@ -157,27 +160,57 @@ async function fetchOrganizationRepositories(octokit, includeOrgs = [], excludeO
 		
 		console.log(`Processing repositories from ${orgsToProcess.length} organizations`);
 		
-		// Then fetch repositories for each organization
-		const orgRepoPromises = orgsToProcess.map(org => 
-			octokit.paginate("GET /orgs/{org}/repos", { org: org.login })
-				.then(repos => {
-					// Add organization context to each repository if preserveOrgStructure is enabled
-					if (preserveOrgStructure) {
-						return repos.map(repo => ({
-							...repo,
-							organization: org.login
-						}));
-					}
-					return repos;
-				})
-		);
+		// Determine if we need to fetch private repositories
+		const privateRepoAccess = options.privateRepositories && octokit.auth;
+		const allOrgRepos = [];
 		
-		// Wait for all requests to complete and flatten the results
-		const orgRepos = await Promise.all(orgRepoPromises)
-			.then(repoArrays => repoArrays.flat())
-			.then(repos => toRepositoryList(repos, preserveOrgStructure));
+		// Process each organization
+		for (const org of orgsToProcess) {
+			const orgName = org.login;
+			console.log(`Fetching repositories for organization: ${orgName}`);
+			
+			try {
+				let orgRepos = [];
+				
+				// Use search API for organizations when private repositories are requested
+				// This is based on the GitHub community discussion recommendation
+				if (privateRepoAccess) {
+					console.log(`Using search API to fetch both public and private repositories for org: ${orgName}`);
+					// Query for both public and private repositories in the organization
+					const searchQuery = `org:${orgName}`;
+					
+					const searchResults = await octokit.paginate("GET /search/repositories", {
+						q: searchQuery,
+						per_page: 100
+					});
+					
+					// Search API returns repositories in the 'items' array
+					orgRepos = searchResults.flatMap(result => result.items || []);
+					console.log(`Found ${orgRepos.length} repositories (public and private) for org: ${orgName}`);
+				} else {
+					// Use standard API for public repositories only
+					orgRepos = await octokit.paginate("GET /orgs/{org}/repos", { 
+						org: orgName 
+					});
+					console.log(`Found ${orgRepos.length} public repositories for org: ${orgName}`);
+				}
+				
+				// Add organization context to each repository if preserveOrgStructure is enabled
+				if (preserveOrgStructure) {
+					orgRepos = orgRepos.map(repo => ({
+						...repo,
+						organization: orgName
+					}));
+				}
+				
+				allOrgRepos.push(...orgRepos);
+			} catch (orgError) {
+				console.error(`Error fetching repositories for org ${orgName}:`, orgError.message);
+			}
+		}
 		
-		return orgRepos;
+		// Convert to repository list format
+		return toRepositoryList(allOrgRepos, preserveOrgStructure);
 	} catch (error) {
 		console.error("Error fetching organization repositories:", error.message);
 		return [];
