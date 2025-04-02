@@ -38,6 +38,7 @@ export function configuration() {
 			mirrorIssues: readBoolean("MIRROR_ISSUES"),
 			mirrorStarred: readBoolean("MIRROR_STARRED"),
 			mirrorOrganizations: readBoolean("MIRROR_ORGANIZATIONS"),
+			useSpecificUser: readBoolean("USE_SPECIFIC_USER"),
 			singleRepo: readEnv("SINGLE_REPO"),
 			includeOrgs: (readEnv("INCLUDE_ORGS") || "")
 				.split(",")

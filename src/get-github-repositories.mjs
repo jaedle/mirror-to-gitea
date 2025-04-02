@@ -19,7 +19,9 @@ async function getRepositories(octokit, mirrorOptions) {
 		
 		// Fetch starred repos if the option is enabled
 		const starredRepos = mirrorOptions.mirrorStarred
-			? await fetchStarredRepositories(octokit)
+			? await fetchStarredRepositories(octokit, { 
+				username: mirrorOptions.useSpecificUser ? mirrorOptions.username : undefined 
+			})
 			: [];
 		
 		// Fetch organization repos if the option is enabled
@@ -28,7 +30,8 @@ async function getRepositories(octokit, mirrorOptions) {
 				octokit, 
 				mirrorOptions.includeOrgs, 
 				mirrorOptions.excludeOrgs,
-				mirrorOptions.preserveOrgStructure
+				mirrorOptions.preserveOrgStructure,
+				{ username: mirrorOptions.useSpecificUser ? mirrorOptions.username : undefined }
 			)
 			: [];
 		
@@ -98,16 +101,42 @@ async function fetchPrivateRepositories(octokit) {
 		.then(toRepositoryList);
 }
 
-async function fetchStarredRepositories(octokit) {
+async function fetchStarredRepositories(octokit, options = {}) {
+	// If a specific username is provided, use the user-specific endpoint
+	if (options.username) {
+		return octokit
+			.paginate("GET /users/{username}/starred", {
+				username: options.username,
+				headers: {
+					'X-GitHub-Api-Version': '2022-11-28'
+				}
+			})
+			.then(toRepositoryList);
+	}
+	
+	// Default: Get starred repos for the authenticated user (what was previously used)
 	return octokit
 		.paginate("GET /user/starred")
 		.then(toRepositoryList);
 }
 
-async function fetchOrganizationRepositories(octokit, includeOrgs = [], excludeOrgs = [], preserveOrgStructure = false) {
+async function fetchOrganizationRepositories(octokit, includeOrgs = [], excludeOrgs = [], preserveOrgStructure = false, options = {}) {
 	try {
-		// First get all organizations the user belongs to
-		const allOrgs = await octokit.paginate("GET /user/orgs");
+		// Get all organizations the user belongs to
+		let allOrgs;
+		
+		// If a specific username is provided, use the user-specific endpoint
+		if (options.username) {
+			allOrgs = await octokit.paginate("GET /users/{username}/orgs", {
+				username: options.username,
+				headers: {
+					'X-GitHub-Api-Version': '2022-11-28'
+				}
+			});
+		} else {
+			// Default: Get organizations for the authenticated user (what was previously used)
+			allOrgs = await octokit.paginate("GET /user/orgs");
+		}
 		
 		// Filter organizations based on include/exclude lists
 		let orgsToProcess = allOrgs;
