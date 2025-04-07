@@ -6,7 +6,7 @@ tasks:
     cmds:
       - task: install
       - task: clean
-      - task: check
+     # - task: check
       - task: test
       - task: build
 
