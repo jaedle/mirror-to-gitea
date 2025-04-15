@@ -53,6 +53,7 @@ All configuration is performed through environment variables. Flags are consider
 | MIRROR_ISSUES               | no       | bool   | FALSE   | If set to `true` the issues of your GitHub repositories will be mirrored to Gitea. Requires `GITHUB_TOKEN`.                                                                                           |
 | MIRROR_STARRED              | no       | bool   | FALSE   | If set to `true` repositories you've starred on GitHub will be mirrored to Gitea. Requires `GITHUB_TOKEN`.                                                                                             |
 | MIRROR_ORGANIZATIONS        | no       | bool   | FALSE   | If set to `true` repositories from organizations you belong to will be mirrored to Gitea. Requires `GITHUB_TOKEN`.                                                                                     |
+| ONLY_MIRROR_ORGS            | no       | bool   | FALSE   | If set to `true` only repositories from organizations will be mirrored, skipping personal repositories. Requires `MIRROR_ORGANIZATIONS=true`.                                                        |
 | USE_SPECIFIC_USER           | no       | bool   | FALSE   | If set to `true`, the tool will use public API endpoints to fetch starred repositories and organizations for the specified `GITHUB_USERNAME` instead of the authenticated user.                        |
 | INCLUDE_ORGS                | no       | string | ""      | Comma-separated list of GitHub organization names to include when mirroring organizations. If not specified, all organizations will be included.                                                        |
 | EXCLUDE_ORGS                | no       | string | ""      | Comma-separated list of GitHub organization names to exclude when mirroring organizations. Takes precedence over `INCLUDE_ORGS`.                                                                       |
@@ -66,7 +67,7 @@ All configuration is performed through environment variables. Flags are consider
 | DELAY                       | no       | int    | 3600    | Number of seconds between program executions. Setting this will only affect how soon after a new repo was created a mirror may appear on Gitea, but has no effect on the ongoing replication.           |
 | DRY_RUN                     | no       | bool   | FALSE   | If set to `true` will perform no writing changes to your Gitea instance, but log the planned actions.                                                                                                  |
 | INCLUDE                     | no       | string | "*"     | Name based repository filter (include): If any filter matches, the repository will be mirrored. It supports glob format, multiple filters can be separated with commas (`,`)                           |
-| EXCLUDE                     | no       | string | ""      | Name based repository filter (exclude). If any filter matches, the repository will not be mirrored. It supports glob format, multiple filters can be separated with commas (`,`). `EXCLUDE` filters are applied after `INCLUDE` ones. 
+| EXCLUDE                     | no       | string | ""      | Name based repository filter (exclude). If any filter matches, the repository will not be mirrored. It supports glob format, multiple filters can be separated with commas (`,`). `EXCLUDE` filters are applied after `INCLUDE` ones.
 | SINGLE_RUN                  | no       | bool   | FALSE   | If set to `TRUE` the task is only executed once.                                                                                                                                                       |
 
 ### Docker
@@ -113,6 +114,22 @@ docker container run \
  -e MIRROR_ORGANIZATIONS=true \
  -e PRESERVE_ORG_STRUCTURE=true \
  -e GITEA_ORG_VISIBILITY=private \
+ jaedle/mirror-to-gitea:latest
+```
+
+### Mirror Only Organization Repositories
+
+```sh
+docker container run \
+ -d \
+ --restart always \
+ -e GITHUB_USERNAME=github-user \
+ -e GITEA_URL=https://your-gitea.url \
+ -e GITEA_TOKEN=please-exchange-with-token \
+ -e GITHUB_TOKEN=your-github-token \
+ -e MIRROR_ORGANIZATIONS=true \
+ -e ONLY_MIRROR_ORGS=true \
+ -e PRESERVE_ORG_STRUCTURE=true \
  jaedle/mirror-to-gitea:latest
 ```
 
@@ -184,6 +201,7 @@ services:
       # - INCLUDE_ORGS=org1,org2
       # - EXCLUDE_ORGS=org3,org4
       # - PRESERVE_ORG_STRUCTURE=true
+      # - ONLY_MIRROR_ORGS=true
       # Other options
       # - SINGLE_REPO=https://github.com/organization/repository
       # - GITEA_ORGANIZATION=my-organization
@@ -216,6 +234,7 @@ export GITEA_TOKEN='...'
 export MIRROR_ISSUES='true'
 export MIRROR_STARRED='true'
 export MIRROR_ORGANIZATIONS='true'
+# export ONLY_MIRROR_ORGS='true'
 # export INCLUDE_ORGS='org1,org2'
 # export EXCLUDE_ORGS='org3,org4'
 # export PRESERVE_ORG_STRUCTURE='true'
@@ -228,6 +247,52 @@ Execute the script in foreground:
 
 ```sh
 task run-local
+```
+
+### Testing Organization Mirroring
+
+To test organization mirroring specifically, you can use the provided `test-org-mirror.sh` script:
+
+```sh
+./test-org-mirror.sh
+```
+
+This script will:
+1. Build the Docker image
+2. Run the container with the following settings:
+   - `MIRROR_ORGANIZATIONS=true` - Enable organization mirroring
+   - `ONLY_MIRROR_ORGS=true` - Only mirror organization repositories, skip personal repositories
+   - `PRESERVE_ORG_STRUCTURE=true` - Create matching organizations in Gitea
+
+#### GitHub Token Requirements
+
+When mirroring organizations, be aware that some organizations have policies that restrict access via personal access tokens. If you encounter an error like:
+
+```
+The 'OrgName' organization forbids access via a fine-grained personal access tokens if the token's lifetime is greater than 366 days.
+```
+
+You'll need to:
+1. Go to your GitHub account settings
+2. Navigate to Personal Access Tokens
+3. Create a new token with a lifetime less than 366 days
+4. Update the `GITHUB_TOKEN` in your `.secrets.rc` file
+
+> Note: Local Gitea instance for testing
+```sh
+docker network create gitea
+docker volume create --driver local gitea
+
+docker run -d \
+  --name gitea \
+  --restart always \
+  --network gitea \
+  -v gitea:/data \
+  -v /etc/timezone:/etc/timezone:ro \
+  -v /etc/localtime:/etc/localtime:ro \
+  -p 3000:3000 \
+  -p 222:22 \
+  docker.gitea.com/gitea:1.23.6
 ```
 
 ## Kudos

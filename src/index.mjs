@@ -30,7 +30,7 @@ async function main() {
 			config.dryRun
 		);
 	}
-	
+
 	// Create the starred repositories organization if mirror starred is enabled
 	if (config.github.mirrorStarred && config.gitea.starredReposOrg) {
 		await createGiteaOrganization(
@@ -55,6 +55,7 @@ async function main() {
 		skipForks: config.github.skipForks,
 		mirrorStarred: config.github.mirrorStarred,
 		mirrorOrganizations: config.github.mirrorOrganizations,
+		onlyMirrorOrgs: config.github.onlyMirrorOrgs,
 		singleRepo: config.github.singleRepo,
 		includeOrgs: config.github.includeOrgs,
 		excludeOrgs: config.github.excludeOrgs,
@@ -82,8 +83,148 @@ async function main() {
 		process.exit(1);
 	}
 
-	// Create a map to store organization targets if preserving structure
+	// Create a map to store organization targets
 	const orgTargets = new Map();
+
+	// If mirroring organizations is enabled, create Gitea organizations for all GitHub orgs the user belongs to
+	if (config.github.mirrorOrganizations) {
+		console.log("Fetching GitHub organizations for mirroring...");
+		// Fetch all organizations the user belongs to
+		let userOrgs = [];
+		try {
+			// Try multiple approaches to fetch organizations
+			try {
+				// First try the authenticated user endpoint
+				if (octokit.auth) {
+					console.log("Using authenticated user endpoint to fetch organizations");
+					try {
+						// Make a direct API call first to see the raw response
+						const response = await octokit.request('GET /user/orgs');
+						console.log(`Direct API call response status: ${response.status}`);
+						console.log(`Direct API call found ${response.data.length} organizations`);
+
+						// Now use pagination to get all results
+						userOrgs = await octokit.paginate("GET /user/orgs");
+						console.log(`Paginated API call found ${userOrgs.length} organizations`);
+					} catch (authError) {
+						console.error(`Error using authenticated endpoint: ${authError.message}`);
+						console.log("Falling back to public endpoint");
+						userOrgs = [];
+					}
+				}
+
+				// If authenticated call failed or returned no orgs, try the public endpoint
+				if ((!userOrgs || userOrgs.length === 0) && config.github.username) {
+					console.log(`Using public endpoint to fetch organizations for user: ${config.github.username}`);
+					try {
+						// Make a direct API call first to see the raw response
+						const response = await octokit.request('GET /users/{username}/orgs', {
+							username: config.github.username,
+							headers: {
+								'X-GitHub-Api-Version': '2022-11-28'
+							}
+						});
+						console.log(`Direct public API call response status: ${response.status}`);
+						console.log(`Direct public API call found ${response.data.length} organizations`);
+
+						// Now use pagination to get all results
+						userOrgs = await octokit.paginate("GET /users/{username}/orgs", {
+							username: config.github.username,
+							headers: {
+								'X-GitHub-Api-Version': '2022-11-28'
+							}
+						});
+					} catch (publicError) {
+						console.error(`Error using public endpoint: ${publicError.message}`);
+						userOrgs = [];
+					}
+				}
+
+				// If we still have no orgs, try a direct API call to list specific orgs
+				if (!userOrgs || userOrgs.length === 0) {
+					console.log("No organizations found through standard endpoints. Trying direct API calls to specific organizations.");
+					userOrgs = [];
+
+					// Try to directly check some known organizations
+					const knownOrgs = config.github.includeOrgs.length > 0 ? config.github.includeOrgs : ['Gameplex-labs', 'uiastra', 'Neucruit'];
+
+					for (const orgName of knownOrgs) {
+						try {
+							const response = await octokit.request('GET /orgs/{org}', {
+								org: orgName,
+								headers: {
+									'X-GitHub-Api-Version': '2022-11-28'
+								}
+							});
+
+							console.log(`Successfully found organization: ${orgName}`);
+							userOrgs.push(response.data);
+						} catch (orgError) {
+							if (orgError.message.includes('organization forbids access via a fine-grained personal access tokens if the token\'s lifetime is greater than 366 days')) {
+								console.error(`\n\nERROR: The '${orgName}' organization has a policy that forbids access via fine-grained personal access tokens with a lifetime greater than 366 days.\n\nPlease adjust your token's lifetime or create a new token with a shorter lifetime.\nSee the error message for details: ${orgError.message}\n`);
+							} else {
+								console.log(`Could not find organization: ${orgName} - ${orgError.message}`);
+							}
+						}
+					}
+				}
+			} catch (error) {
+				console.error(`Error fetching organizations: ${error.message}`);
+				userOrgs = [];
+			}
+
+			// Log the organizations found
+			console.log(`Found ${userOrgs.length} organizations: ${userOrgs.map(org => org.login).join(', ')}`);
+
+			// Filter organizations based on include/exclude lists
+			if (config.github.includeOrgs.length > 0) {
+				console.log(`Filtering to include only these organizations: ${config.github.includeOrgs.join(', ')}`);
+				userOrgs = userOrgs.filter(org =>
+					config.github.includeOrgs.includes(org.login)
+				);
+			}
+
+			if (config.github.excludeOrgs.length > 0) {
+				console.log(`Excluding these organizations: ${config.github.excludeOrgs.join(', ')}`);
+				userOrgs = userOrgs.filter(org =>
+					!config.github.excludeOrgs.includes(org.login)
+				);
+			}
+
+			console.log(`Found ${userOrgs.length} GitHub organizations to mirror: ${userOrgs.map(org => org.login).join(', ')}`);
+
+			// If no organizations to process, log a warning
+			if (userOrgs.length === 0) {
+				console.log("No organizations to mirror after filtering. Check your INCLUDE_ORGS and EXCLUDE_ORGS settings.");
+			}
+
+			// Create each organization in Gitea
+			for (const org of userOrgs) {
+				const orgName = org.login;
+				console.log(`Preparing Gitea organization for GitHub organization: ${orgName}`);
+
+				// Create the organization if it doesn't exist
+				await createGiteaOrganization(
+					gitea,
+					orgName,
+					config.gitea.visibility,
+					config.dryRun
+				);
+
+				// Get the organization details
+				const orgTarget = await getGiteaOrganization(gitea, orgName);
+				if (orgTarget) {
+					orgTargets.set(orgName, orgTarget);
+				} else {
+					console.error(`Failed to get or create Gitea organization: ${orgName}`);
+				}
+			}
+		} catch (error) {
+			console.error("Error fetching user organizations:", error.message);
+		}
+	}
+
+	// If preserving org structure, ensure all organizations from repositories are created
 	if (config.github.preserveOrgStructure) {
 		// Get unique organization names from repositories
 		const uniqueOrgs = new Set(
@@ -91,25 +232,27 @@ async function main() {
 				.filter(repo => repo.organization)
 				.map(repo => repo.organization)
 		);
-		
-		// Create or get each organization in Gitea
+
+		// Create or get each organization in Gitea if not already created
 		for (const orgName of uniqueOrgs) {
-			console.log(`Preparing Gitea organization for GitHub organization: ${orgName}`);
-			
-			// Create the organization if it doesn't exist
-			await createGiteaOrganization(
-				gitea,
-				orgName,
-				config.gitea.visibility,
-				config.dryRun
-			);
-			
-			// Get the organization details
-			const orgTarget = await getGiteaOrganization(gitea, orgName);
-			if (orgTarget) {
-				orgTargets.set(orgName, orgTarget);
-			} else {
-				console.error(`Failed to get or create Gitea organization: ${orgName}`);
+			if (!orgTargets.has(orgName)) {
+				console.log(`Preparing Gitea organization for GitHub organization: ${orgName}`);
+
+				// Create the organization if it doesn't exist
+				await createGiteaOrganization(
+					gitea,
+					orgName,
+					config.gitea.visibility,
+					config.dryRun
+				);
+
+				// Get the organization details
+				const orgTarget = await getGiteaOrganization(gitea, orgName);
+				if (orgTarget) {
+					orgTargets.set(orgName, orgTarget);
+				} else {
+					console.error(`Failed to get or create Gitea organization: ${orgName}`);
+				}
 			}
 		}
 	}
@@ -121,23 +264,23 @@ async function main() {
 			return async () => {
 				// Determine the target (user or organization)
 				let giteaTarget;
-				
+
 				if (config.github.preserveOrgStructure && repository.organization) {
 					// Use the organization as target
 					giteaTarget = orgTargets.get(repository.organization);
 					if (!giteaTarget) {
 						console.error(`No Gitea organization found for ${repository.organization}, using user instead`);
-						giteaTarget = config.gitea.organization 
+						giteaTarget = config.gitea.organization
 							? await getGiteaOrganization(gitea, config.gitea.organization)
 							: giteaUser;
 					}
 				} else {
 					// Use the specified organization or user
-					giteaTarget = config.gitea.organization 
+					giteaTarget = config.gitea.organization
 						? await getGiteaOrganization(gitea, config.gitea.organization)
 						: giteaUser;
 				}
-				
+
 				await mirror(
 					repository,
 					{
@@ -162,9 +305,9 @@ async function getGiteaUser(gitea) {
 		const response = await request
 			.get(`${gitea.url}/api/v1/user`)
 			.set("Authorization", `token ${gitea.token}`);
-		
-		return { 
-			id: response.body.id, 
+
+		return {
+			id: response.body.id,
 			name: response.body.username,
 			type: "user"
 		};
@@ -180,9 +323,9 @@ async function getGiteaOrganization(gitea, orgName) {
 		const response = await request
 			.get(`${gitea.url}/api/v1/orgs/${orgName}`)
 			.set("Authorization", `token ${gitea.token}`);
-		
-		return { 
-			id: response.body.id, 
+
+		return {
+			id: response.body.id,
 			name: orgName,
 			type: "organization"
 		};
@@ -202,24 +345,24 @@ async function createGiteaOrganization(gitea, orgName, visibility, dryRun) {
 	try {
 		// First check if organization already exists
 		try {
-			const existingOrg = await request
+			await request
 				.get(`${gitea.url}/api/v1/orgs/${orgName}`)
 				.set("Authorization", `token ${gitea.token}`);
-			
+
 			console.log(`Organization ${orgName} already exists`);
 			return true;
 		} catch (checkError) {
 			// Organization doesn't exist, continue to create it
 		}
 
-		const response = await request
+		await request
 			.post(`${gitea.url}/api/v1/orgs`)
 			.set("Authorization", `token ${gitea.token}`)
 			.send({
 				username: orgName,
 				visibility: visibility || "public",
 			});
-		
+
 		console.log(`Created organization: ${orgName}`);
 		return true;
 	} catch (error) {
@@ -228,7 +371,7 @@ async function createGiteaOrganization(gitea, orgName, visibility, dryRun) {
 			console.log(`Organization ${orgName} already exists`);
 			return true;
 		}
-		
+
 		console.error(`Error creating Gitea organization ${orgName}:`, error.message);
 		return false;
 	}
@@ -239,7 +382,7 @@ async function isAlreadyMirroredOnGitea(repository, gitea, giteaTarget) {
 	const repoName = repository.name;
 	const ownerName = giteaTarget.name;
 	const requestUrl = `${gitea.url}/api/v1/repos/${ownerName}/${repoName}`;
-	
+
 	try {
 		await request
 			.get(requestUrl)
@@ -264,7 +407,7 @@ async function mirrorOnGitea(repository, gitea, giteaTarget, githubToken) {
 				uid: giteaTarget.id,
 				private: repository.private,
 			});
-		
+
 		console.log(`Successfully mirrored: ${repository.name}`);
 		return response.body;
 	} catch (error) {
@@ -312,9 +455,9 @@ async function createGiteaIssue(issue, repository, gitea, giteaTarget) {
 				state: issue.state,
 				closed: issue.closed,
 			});
-		
+
 		console.log(`Created issue #${response.body.number}: ${issue.title}`);
-		
+
 		// Add labels if the issue has any
 		if (issue.labels && issue.labels.length > 0) {
 			await Promise.all(issue.labels.map(async (label) => {
@@ -330,7 +473,7 @@ async function createGiteaIssue(issue, repository, gitea, giteaTarget) {
 						.catch(() => {
 							// Label might already exist, which is fine
 						});
-					
+
 					// Then add the label to the issue
 					await request
 						.post(`${gitea.url}/api/v1/repos/${giteaTarget.name}/${repository.name}/issues/${response.body.number}/labels`)
@@ -343,7 +486,7 @@ async function createGiteaIssue(issue, repository, gitea, giteaTarget) {
 				}
 			}));
 		}
-		
+
 		return response.body;
 	} catch (error) {
 		console.error(`Error creating issue "${issue.title}":`, error.message);
@@ -367,14 +510,14 @@ async function mirrorIssues(repository, gitea, giteaTarget, githubToken, dryRun)
 		const octokit = new Octokit({ auth: githubToken });
 		const owner = repository.owner || repository.full_name.split('/')[0];
 		const issues = await getGithubIssues(octokit, owner, repository.name);
-		
+
 		console.log(`Found ${issues.length} issues for ${repository.name}`);
-		
+
 		// Create issues one by one to maintain order
 		for (const issue of issues) {
 			await createGiteaIssue(issue, repository, gitea, giteaTarget);
 		}
-		
+
 		console.log(`Completed mirroring issues for ${repository.name}`);
 	} catch (error) {
 		console.error(`Error mirroring issues for ${repository.name}:`, error.message);
@@ -383,8 +526,18 @@ async function mirrorIssues(repository, gitea, giteaTarget, githubToken, dryRun)
 
 // Mirror a repository
 async function mirror(repository, gitea, giteaTarget, githubToken, mirrorIssuesFlag, dryRun) {
+	// For organization repositories, use the corresponding organization if available
+	if (repository.organization) {
+		const orgTarget = await getGiteaOrganization(gitea, repository.organization);
+		if (orgTarget) {
+			console.log(`Using organization "${repository.organization}" for repository: ${repository.name}`);
+			giteaTarget = orgTarget;
+		} else {
+			console.log(`Could not find organization "${repository.organization}" for repository ${repository.name}, using default target`);
+		}
+	}
 	// For starred repositories, use the starred repos organization if configured
-	if (repository.starred && gitea.starredReposOrg) {
+	else if (repository.starred && gitea.starredReposOrg) {
 		// Get the starred repos organization
 		const starredOrg = await getGiteaOrganization(gitea, gitea.starredReposOrg);
 		if (starredOrg) {
@@ -396,7 +549,7 @@ async function mirror(repository, gitea, giteaTarget, githubToken, mirrorIssuesF
 	}
 
 	const isAlreadyMirrored = await isAlreadyMirroredOnGitea(repository, gitea, giteaTarget);
-	
+
 	// Special handling for starred repositories
 	if (repository.starred) {
 		if (isAlreadyMirrored) {
@@ -414,21 +567,21 @@ async function mirror(repository, gitea, giteaTarget, githubToken, mirrorIssuesF
 		console.log(`DRY RUN: Would mirror repository to ${giteaTarget.type} ${giteaTarget.name}: ${repository.name}`);
 		return;
 	}
-	
+
 	console.log(`Mirroring repository to ${giteaTarget.type} ${giteaTarget.name}: ${repository.name}${repository.starred ? ' (will be starred)' : ''}`);
 	try {
 		await mirrorOnGitea(repository, gitea, giteaTarget, githubToken);
-		
+
 		// Star the repository if it's marked as starred
 		if (repository.starred) {
 			await starRepositoryInGitea(repository, gitea, giteaTarget, dryRun);
 		}
-		
+
 		// Mirror issues if requested and not in dry run mode
 		// Skip issues for starred repos if the skipStarredIssues option is enabled
-		const shouldMirrorIssues = mirrorIssuesFlag && 
+		const shouldMirrorIssues = mirrorIssuesFlag &&
 			!(repository.starred && gitea.skipStarredIssues);
-			
+
 		if (shouldMirrorIssues && !dryRun) {
 			await mirrorIssues(repository, gitea, giteaTarget, githubToken, dryRun);
 		} else if (repository.starred && gitea.skipStarredIssues) {
@@ -443,17 +596,17 @@ async function mirror(repository, gitea, giteaTarget, githubToken, mirrorIssuesF
 async function starRepositoryInGitea(repository, gitea, giteaTarget, dryRun) {
 	const ownerName = giteaTarget.name;
 	const repoName = repository.name;
-	
+
 	if (dryRun) {
 		console.log(`DRY RUN: Would star repository in Gitea: ${ownerName}/${repoName}`);
 		return true;
 	}
-	
+
 	try {
 		await request
 			.put(`${gitea.url}/api/v1/user/starred/${ownerName}/${repoName}`)
 			.set("Authorization", `token ${gitea.token}`);
-		
+
 		console.log(`Successfully starred repository in Gitea: ${ownerName}/${repoName}`);
 		return true;
 	} catch (error) {

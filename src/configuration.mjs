@@ -38,6 +38,7 @@ export function configuration() {
 			mirrorIssues: readBoolean("MIRROR_ISSUES"),
 			mirrorStarred: readBoolean("MIRROR_STARRED"),
 			mirrorOrganizations: readBoolean("MIRROR_ORGANIZATIONS"),
+			onlyMirrorOrgs: readBoolean("ONLY_MIRROR_ORGS"),
 			useSpecificUser: readBoolean("USE_SPECIFIC_USER"),
 			singleRepo: readEnv("SINGLE_REPO"),
 			includeOrgs: (readEnv("INCLUDE_ORGS") || "")
@@ -76,7 +77,7 @@ export function configuration() {
 	}
 
 	// GitHub token is required for mirroring issues, starred repos, and orgs
-	if ((config.github.mirrorIssues || config.github.mirrorStarred || config.github.mirrorOrganizations || config.github.singleRepo) 
+	if ((config.github.mirrorIssues || config.github.mirrorStarred || config.github.mirrorOrganizations || config.github.singleRepo)
 		&& config.github.token === undefined) {
 		throw new Error(
 			"invalid configuration, mirroring issues, starred repositories, organizations, or a single repo requires setting GITHUB_TOKEN",
