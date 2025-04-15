@@ -49,6 +49,7 @@ async function main() {
 	});
 
 	// Get user or organization repositories
+	console.log("Fetching repositories from GitHub...");
 	const githubRepositories = await getGithubRepositories(octokit, {
 		username: config.github.username,
 		privateRepositories: config.github.privateRepositories,
@@ -64,6 +65,7 @@ async function main() {
 		publicOrgs: config.github.publicOrgs,
 		preserveOrgStructure: config.github.preserveOrgStructure,
 	});
+	console.log(`Fetched ${githubRepositories.length} repositories from GitHub.`);
 
 	// Apply include/exclude filters
 	const filteredRepositories = githubRepositories.filter(
@@ -291,6 +293,17 @@ async function main() {
 	}
 
 	// Mirror repositories
+	console.log(`Starting to mirror ${filteredRepositories.length} repositories...`);
+	if (filteredRepositories.length === 0) {
+		console.log("No repositories to mirror. Check your configuration and permissions.");
+	} else {
+		// Log repository names for debugging
+		console.log("Repositories to mirror:");
+		filteredRepositories.forEach((repo, index) => {
+			console.log(`${index + 1}. ${repo.full_name}${repo.organization ? ` (from organization: ${repo.organization})` : ''}`);
+		});
+	}
+
 	const queue = new PQueue({ concurrency: 4 });
 	await queue.addAll(
 		filteredRepositories.map((repository) => {

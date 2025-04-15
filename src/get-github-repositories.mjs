@@ -352,6 +352,26 @@ async function fetchOrganizationRepositories(octokit, includeOrgs = [], excludeO
 						orgRepos = response.data;
 						console.log(`Found ${orgRepos.length} repositories using REST API for org: ${orgName}`);
 
+						// If we still have no repositories, try one more approach with the public repos endpoint
+						if (orgRepos.length === 0) {
+							console.log(`Still no repositories found. Trying public repos endpoint for org: ${orgName}...`);
+							try {
+								// Try the public repos endpoint which might have different access controls
+								const publicResponse = await octokit.request('GET /orgs/{org}/repos', {
+									org: orgName,
+									type: 'public',
+									per_page: 100,
+									headers: {
+										'X-GitHub-Api-Version': '2022-11-28'
+									}
+								});
+								orgRepos = publicResponse.data;
+								console.log(`Found ${orgRepos.length} public repositories using public endpoint for org: ${orgName}`);
+							} catch (publicError) {
+								console.error(`Error using public repos endpoint for org ${orgName}: ${publicError.message}`);
+							}
+						}
+
 						// If we still have no repositories, check if the user has access to the organization
 						if (orgRepos.length === 0) {
 							console.log(`Still no repositories found for org: ${orgName}. Checking membership...`);
@@ -488,7 +508,21 @@ async function fetchPublicOrganizationRepositories(octokit, publicOrgs = [], _pr
 					console.log(`Found ${orgRepos.length} public repositories for org: ${orgName}`);
 				} catch (repoError) {
 					console.error(`Error fetching repositories for public organization ${orgName}: ${repoError.message}`);
-					continue; // Skip to next organization
+
+					// Try another approach using the REST API
+					console.log(`Trying REST API for public organization: ${orgName}...`);
+					try {
+						const restResponse = await octokit.rest.repos.listForOrg({
+							org: orgName,
+							type: 'public',
+							per_page: 100
+						});
+						orgRepos = restResponse.data;
+						console.log(`Found ${orgRepos.length} public repositories using REST API for org: ${orgName}`);
+					} catch (restError) {
+						console.error(`Error using REST API for public organization ${orgName}: ${restError.message}`);
+						continue; // Skip to next organization
+					}
 				}
 
 				// Add organization context to each repository
