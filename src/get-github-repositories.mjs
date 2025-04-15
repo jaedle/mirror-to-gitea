@@ -207,7 +207,34 @@ async function fetchOrganizationRepositories(octokit, includeOrgs = [], excludeO
 						console.log(`Using ${allOrgs.length} organizations found through public endpoint`);
 						return await fetchReposFromOrgs(octokit, allOrgs, options);
 					} else {
-						return [];
+						// If no organizations found, try some common organizations
+						const defaultOrgs = ['community-scripts', 'Proxmox'];
+						console.log(`No organizations found. Trying default organizations: ${defaultOrgs.join(', ')}`);
+
+						// Try each default organization
+						for (const orgName of defaultOrgs) {
+							try {
+								const response = await octokit.request('GET /orgs/{org}', {
+									org: orgName,
+									headers: {
+										'X-GitHub-Api-Version': '2022-11-28'
+									}
+								});
+
+								console.log(`Successfully found default organization: ${orgName}`);
+								allOrgs.push(response.data);
+							} catch (orgError) {
+								console.log(`Could not find default organization: ${orgName} - ${orgError.message}`);
+							}
+						}
+
+						// If we found any default organizations, process them
+						if (allOrgs.length > 0) {
+							console.log(`Found ${allOrgs.length} default organizations`);
+							return await fetchReposFromOrgs(octokit, allOrgs, options);
+						} else {
+							return [];
+						}
 					}
 				}
 
