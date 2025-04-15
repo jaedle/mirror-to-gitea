@@ -201,7 +201,14 @@ async function fetchOrganizationRepositories(octokit, includeOrgs = [], excludeO
 				// Only check organizations explicitly specified in includeOrgs
 				if (includeOrgs.length === 0) {
 					console.log("No organizations specified in INCLUDE_ORGS. Skipping direct organization checks.");
-					return [];
+					// Don't return early, as we might have found organizations through other methods
+					// Instead, use the organizations we've already found
+					if (allOrgs && allOrgs.length > 0) {
+						console.log(`Using ${allOrgs.length} organizations found through public endpoint`);
+						return await fetchReposFromOrgs(octokit, allOrgs, options);
+					} else {
+						return [];
+					}
 				}
 
 				for (const orgName of includeOrgs) {
@@ -261,21 +268,30 @@ async function fetchOrganizationRepositories(octokit, includeOrgs = [], excludeO
 			return [];
 		}
 
-		// Determine if we need to fetch private repositories
-		const privateRepoAccess = options.privateRepositories && octokit.auth;
-		const allOrgRepos = [];
+		// Process each organization using the extracted function
+		return await fetchReposFromOrgs(octokit, orgsToProcess, options);
+	} catch (error) {
+		console.error("Error fetching organization repositories:", error.message);
+		return [];
+	}
+}
 
-		// Process each organization
-		for (const org of orgsToProcess) {
-			const orgName = org.login;
-			console.log(`Fetching repositories for organization: ${orgName}`);
+// Extract repository fetching logic into a separate function
+async function fetchReposFromOrgs(octokit, orgs, options = {}) {
+	const allOrgRepos = [];
+	const privateRepoAccess = options.privateRepositories && octokit.auth;
 
-			try {
-				let orgRepos = [];
+	// Process each organization
+	for (const org of orgs) {
+		const orgName = org.login;
+		console.log(`Fetching repositories for organization: ${orgName}`);
 
-				// Use search API for organizations when private repositories are requested
-				// This is based on the GitHub community discussion recommendation
-				if (privateRepoAccess) {
+		try {
+			let orgRepos = [];
+
+			// Use search API for organizations when private repositories are requested
+			// This is based on the GitHub community discussion recommendation
+			if (privateRepoAccess) {
 					console.log(`Using search API to fetch both public and private repositories for org: ${orgName}`);
 					// Query for both public and private repositories in the organization
 					const searchQuery = `org:${orgName}`;
@@ -429,10 +445,6 @@ async function fetchOrganizationRepositories(octokit, includeOrgs = [], excludeO
 
 		// Convert to repository list format
 		return toRepositoryList(allOrgRepos);
-	} catch (error) {
-		console.error("Error fetching organization repositories:", error.message);
-		return [];
-	}
 }
 
 function withoutForks(repositories) {
