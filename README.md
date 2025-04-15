@@ -264,6 +264,8 @@ This script will:
    - `ONLY_MIRROR_ORGS=true` - Only mirror organization repositories, skip personal repositories
    - `PRESERVE_ORG_STRUCTURE=true` - Create matching organizations in Gitea
 
+### Common Issues and Troubleshooting
+
 #### GitHub Token Requirements
 
 When mirroring organizations, be aware that some organizations have policies that restrict access via personal access tokens. If you encounter an error like:
@@ -277,6 +279,46 @@ You'll need to:
 2. Navigate to Personal Access Tokens
 3. Create a new token with a lifetime less than 366 days
 4. Update the `GITHUB_TOKEN` in your `.secrets.rc` file
+
+#### No Organizations Found
+
+If you see a message like:
+
+```
+Found 0 organizations:
+No organizations to process after filtering. Check your INCLUDE_ORGS and EXCLUDE_ORGS settings.
+```
+
+Possible causes and solutions:
+- **Token permissions**: Ensure your GitHub token has the `read:org` scope
+- **Organization membership**: Verify you are a member of the organizations you're trying to mirror
+- **Include/Exclude settings**: Check your `INCLUDE_ORGS` and `EXCLUDE_ORGS` settings
+
+#### No Repositories Found for Organization
+
+If you see a message like:
+
+```
+Found 0 repositories for org: OrgName
+```
+
+Possible causes and solutions:
+- **Repository access**: Ensure you have access to the repositories in the organization
+- **Empty organization**: The organization might not have any repositories
+- **Token permissions**: Ensure your GitHub token has the `repo` scope for private repositories
+
+#### Organization Creation Fails in Gitea
+
+If you see errors when creating organizations in Gitea:
+
+```
+Error creating Gitea organization OrgName: ...
+```
+
+Possible causes and solutions:
+- **Gitea token permissions**: Ensure your Gitea token has organization creation permissions
+- **Organization already exists**: The organization might already exist in Gitea with a different case (Gitea is case-insensitive for organization names)
+- **Gitea version**: Ensure you're using a compatible version of Gitea
 
 > Note: Local Gitea instance for testing
 ```sh
