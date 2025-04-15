@@ -27,6 +27,7 @@ Additionally, you can now mirror:
 - Repositories from organizations you belong to
   - Filter which organizations to include or exclude
   - Maintain original organization structure in Gitea
+- Public repositories from any GitHub organization (even if you're not a member)
 - A single repository instead of all repositories
 - Repositories to a specific Gitea organization
 
@@ -48,15 +49,17 @@ All configuration is performed through environment variables. Flags are consider
 | GITHUB_USERNAME             | yes      | string | -       | The name of the GitHub user or organisation to mirror.                                                                                                                                                 |
 | GITEA_URL                   | yes      | string | -       | The url of your Gitea server.                                                                                                                                                                          |
 | GITEA_TOKEN                 | yes      | string | -       | The token for your gitea user (Settings -> Applications -> Generate New Token). **Attention: if this is set, the token will be transmitted to your specified Gitea instance!**                         |
-| GITHUB_TOKEN                | no*      | string | -       | GitHub token (PAT). Is mandatory in combination with `MIRROR_PRIVATE_REPOSITORIES`, `MIRROR_ISSUES`, `MIRROR_STARRED`, `MIRROR_ORGANIZATIONS`, or `SINGLE_REPO`.                                       |
+| GITHUB_TOKEN                | no*      | string | -       | GitHub token (PAT). Is mandatory in combination with `MIRROR_PRIVATE_REPOSITORIES`, `MIRROR_ISSUES`, `MIRROR_STARRED`, `MIRROR_ORGANIZATIONS`, `MIRROR_PUBLIC_ORGS`, or `SINGLE_REPO`.                |
 | MIRROR_PRIVATE_REPOSITORIES | no       | bool   | FALSE   | If set to `true` your private GitHub Repositories will be mirrored to Gitea. Requires `GITHUB_TOKEN`.                                                                                                  |
 | MIRROR_ISSUES               | no       | bool   | FALSE   | If set to `true` the issues of your GitHub repositories will be mirrored to Gitea. Requires `GITHUB_TOKEN`.                                                                                           |
 | MIRROR_STARRED              | no       | bool   | FALSE   | If set to `true` repositories you've starred on GitHub will be mirrored to Gitea. Requires `GITHUB_TOKEN`.                                                                                             |
 | MIRROR_ORGANIZATIONS        | no       | bool   | FALSE   | If set to `true` repositories from organizations you belong to will be mirrored to Gitea. Requires `GITHUB_TOKEN`.                                                                                     |
-| ONLY_MIRROR_ORGS            | no       | bool   | FALSE   | If set to `true` only repositories from organizations will be mirrored, skipping personal repositories. Requires `MIRROR_ORGANIZATIONS=true`.                                                        |
+| MIRROR_PUBLIC_ORGS          | no       | bool   | FALSE   | If set to `true` repositories from public organizations specified in `PUBLIC_ORGS` will be mirrored to Gitea, even if you're not a member. Requires `GITHUB_TOKEN`.                                   |
+| PUBLIC_ORGS                 | no       | string | ""      | Comma-separated list of public GitHub organization names to mirror when `MIRROR_PUBLIC_ORGS=true`. Case-insensitive.                                                                                    |
+| ONLY_MIRROR_ORGS            | no       | bool   | FALSE   | If set to `true` only repositories from organizations will be mirrored, skipping personal repositories. Requires `MIRROR_ORGANIZATIONS=true` or `MIRROR_PUBLIC_ORGS=true`.                           |
 | USE_SPECIFIC_USER           | no       | bool   | FALSE   | If set to `true`, the tool will use public API endpoints to fetch starred repositories and organizations for the specified `GITHUB_USERNAME` instead of the authenticated user.                        |
-| INCLUDE_ORGS                | no       | string | ""      | Comma-separated list of GitHub organization names to include when mirroring organizations. If not specified, all organizations will be included.                                                        |
-| EXCLUDE_ORGS                | no       | string | ""      | Comma-separated list of GitHub organization names to exclude when mirroring organizations. Takes precedence over `INCLUDE_ORGS`.                                                                       |
+| INCLUDE_ORGS                | no       | string | ""      | Comma-separated list of GitHub organization names to include when mirroring organizations you belong to. If not specified, all organizations will be included. Case-insensitive.                       |
+| EXCLUDE_ORGS                | no       | string | ""      | Comma-separated list of GitHub organization names to exclude when mirroring organizations. Takes precedence over `INCLUDE_ORGS`. Case-insensitive.                                                    |
 | PRESERVE_ORG_STRUCTURE      | no       | bool   | FALSE   | If set to `true`, each GitHub organization will be mirrored to a Gitea organization with the same name. If the organization doesn't exist, it will be created.                                         |
 | SINGLE_REPO                 | no       | string | -       | URL of a single GitHub repository to mirror (e.g., https://github.com/username/repo or username/repo). When specified, only this repository will be mirrored. Requires `GITHUB_TOKEN`.                 |
 | GITEA_ORGANIZATION          | no       | string | -       | Name of a Gitea organization to mirror repositories to. If doesn't exist, will be created.                                                                                                             |
@@ -180,6 +183,24 @@ docker container run \
 
 This configuration will mirror all starred repositories to a Gitea organization named "github" and will not mirror issues for these starred repositories.
 
+### Mirror Public Organizations
+
+```sh
+docker container run \
+ -d \
+ --restart always \
+ -e GITHUB_USERNAME=github-user \
+ -e GITEA_URL=https://your-gitea.url \
+ -e GITEA_TOKEN=please-exchange-with-token \
+ -e GITHUB_TOKEN=your-github-token \
+ -e MIRROR_PUBLIC_ORGS=true \
+ -e PUBLIC_ORGS=proxmox,kubernetes,microsoft \
+ -e PRESERVE_ORG_STRUCTURE=true \
+ jaedle/mirror-to-gitea:latest
+```
+
+This configuration will mirror public repositories from the specified public organizations (Proxmox, Kubernetes, and Microsoft) even if you're not a member of these organizations. The repositories will be organized under matching organization names in Gitea.
+
 ### Docker Compose
 
 ```yaml
@@ -202,6 +223,9 @@ services:
       # - EXCLUDE_ORGS=org3,org4
       # - PRESERVE_ORG_STRUCTURE=true
       # - ONLY_MIRROR_ORGS=true
+      # Public organization options
+      # - MIRROR_PUBLIC_ORGS=true
+      # - PUBLIC_ORGS=proxmox,kubernetes,microsoft
       # Other options
       # - SINGLE_REPO=https://github.com/organization/repository
       # - GITEA_ORGANIZATION=my-organization
@@ -238,6 +262,10 @@ export MIRROR_ORGANIZATIONS=true
 # export INCLUDE_ORGS='org1,org2'
 # export EXCLUDE_ORGS='org3,org4'
 # export PRESERVE_ORG_STRUCTURE=true
+# Public organization options
+# export MIRROR_PUBLIC_ORGS=true
+# export PUBLIC_ORGS='proxmox,kubernetes,microsoft'
+# Other options
 # export SINGLE_REPO='https://github.com/user/repo'
 # export GITEA_ORGANIZATION='my-organization'
 # export GITEA_ORG_VISIBILITY='public'

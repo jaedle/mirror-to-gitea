@@ -8,7 +8,7 @@ async function getRepositories(octokit, mirrorOptions) {
 			repositories.push(singleRepo);
 		}
 	} else {
-		// Fetch organization repos if the option is enabled
+		// Fetch member organization repos if the option is enabled
 		const orgRepos = mirrorOptions.mirrorOrganizations
 			? await fetchOrganizationRepositories(
 				octokit,
@@ -17,15 +17,25 @@ async function getRepositories(octokit, mirrorOptions) {
 				mirrorOptions.preserveOrgStructure,
 				{
 					username: mirrorOptions.useSpecificUser ? mirrorOptions.username : undefined,
-					privateRepositories: mirrorOptions.privateRepositories
+					privateRepositories: mirrorOptions.privateRepositories,
+					isMemberOrgs: true // Flag to indicate these are member organizations
 				}
+			)
+			: [];
+
+		// Fetch public organization repos if the option is enabled
+		const publicOrgRepos = mirrorOptions.mirrorPublicOrgs
+			? await fetchPublicOrganizationRepositories(
+				octokit,
+				mirrorOptions.publicOrgs,
+				mirrorOptions.preserveOrgStructure
 			)
 			: [];
 
 		// If only mirroring organization repositories, skip personal repositories
 		if (mirrorOptions.onlyMirrorOrgs) {
 			console.log("Only mirroring organization repositories");
-			repositories = orgRepos;
+			repositories = filterDuplicates([...orgRepos, ...publicOrgRepos]);
 		} else {
 			// Standard mirroring logic for personal repositories
 			const publicRepositories = await fetchPublicRepositories(
@@ -48,7 +58,8 @@ async function getRepositories(octokit, mirrorOptions) {
 				...publicRepositories,
 				...privateRepos,
 				...starredRepos,
-				...orgRepos
+				...orgRepos,
+				...publicOrgRepos
 			]);
 		}
 	}
@@ -187,10 +198,13 @@ async function fetchOrganizationRepositories(octokit, includeOrgs = [], excludeO
 				console.log("No organizations found through standard endpoints. Trying direct API calls to specific organizations.");
 				allOrgs = [];
 
-				// Try to directly check some known organizations
-				const knownOrgs = includeOrgs.length > 0 ? includeOrgs : ['Gameplex-labs', 'uiastra', 'Neucruit'];
+				// Only check organizations explicitly specified in includeOrgs
+				if (includeOrgs.length === 0) {
+					console.log("No organizations specified in INCLUDE_ORGS. Skipping direct organization checks.");
+					return [];
+				}
 
-				for (const orgName of knownOrgs) {
+				for (const orgName of includeOrgs) {
 					try {
 						const response = await octokit.request('GET /orgs/{org}', {
 							org: orgName,
@@ -224,16 +238,18 @@ async function fetchOrganizationRepositories(octokit, includeOrgs = [], excludeO
 		if (includeOrgs.length > 0) {
 			// Only include specific organizations
 			console.log(`Filtering to include only these organizations: ${includeOrgs.join(', ')}`);
+			// Make case-insensitive comparison
 			orgsToProcess = orgsToProcess.filter(org =>
-				includeOrgs.includes(org.login)
+				includeOrgs.some(includedOrg => includedOrg.toLowerCase() === org.login.toLowerCase())
 			);
 		}
 
 		if (excludeOrgs.length > 0) {
 			// Exclude specific organizations
 			console.log(`Excluding these organizations: ${excludeOrgs.join(', ')}`);
+			// Make case-insensitive comparison
 			orgsToProcess = orgsToProcess.filter(org =>
-				!excludeOrgs.includes(org.login)
+				!excludeOrgs.some(excludedOrg => excludedOrg.toLowerCase() === org.login.toLowerCase())
 			);
 		}
 
@@ -415,6 +431,84 @@ function filterDuplicates(repositories) {
 	}
 
 	return unique;
+}
+
+/**
+ * Fetch repositories from public organizations that the user may not be a member of
+ * This is a separate function from fetchOrganizationRepositories to handle public orgs differently
+ */
+async function fetchPublicOrganizationRepositories(octokit, publicOrgs = [], _preserveOrgStructure = false) {
+	try {
+		console.log("Fetching public organization repositories...");
+		if (publicOrgs.length === 0) {
+			console.log("No public organizations specified. Use PUBLIC_ORGS environment variable to specify organizations.");
+			return [];
+		}
+
+		console.log(`Attempting to fetch repositories from these public organizations: ${publicOrgs.join(', ')}`);
+		const allOrgRepos = [];
+
+		// Process each organization directly - we don't need to check membership
+		for (const orgName of publicOrgs) {
+			console.log(`Fetching repositories for public organization: ${orgName}`);
+
+			try {
+				// Try to get organization info first to verify it exists
+				try {
+					await octokit.request('GET /orgs/{org}', {
+						org: orgName,
+						headers: {
+							'X-GitHub-Api-Version': '2022-11-28'
+						}
+					});
+					console.log(`Successfully found public organization: ${orgName}`);
+				} catch (orgError) {
+					console.error(`Error fetching public organization ${orgName}: ${orgError.message}`);
+					continue; // Skip to next organization
+				}
+
+				// Fetch public repositories for this organization
+				let orgRepos = [];
+				try {
+					// Make a direct API call first to see the raw response
+					const directResponse = await octokit.request('GET /orgs/{org}/repos', {
+						org: orgName,
+						type: 'public', // Only fetch public repos
+						per_page: 100
+					});
+					console.log(`Direct API call response status: ${directResponse.status}`);
+					console.log(`Direct API call found ${directResponse.data.length} repositories`);
+
+					// Now use pagination to get all results
+					orgRepos = await octokit.paginate("GET /orgs/{org}/repos", {
+						org: orgName,
+						type: 'public', // Only fetch public repos
+						per_page: 100
+					});
+					console.log(`Found ${orgRepos.length} public repositories for org: ${orgName}`);
+				} catch (repoError) {
+					console.error(`Error fetching repositories for public organization ${orgName}: ${repoError.message}`);
+					continue; // Skip to next organization
+				}
+
+				// Add organization context to each repository
+				orgRepos = orgRepos.map(repo => ({
+					...repo,
+					organization: orgName
+				}));
+
+				allOrgRepos.push(...orgRepos);
+			} catch (error) {
+				console.error(`Error processing public organization ${orgName}:`, error.message);
+			}
+		}
+
+		console.log(`Found a total of ${allOrgRepos.length} repositories from public organizations`);
+		return toRepositoryList(allOrgRepos);
+	} catch (error) {
+		console.error("Error fetching public organization repositories:", error.message);
+		return [];
+	}
 }
 
 function toRepositoryList(repositories) {

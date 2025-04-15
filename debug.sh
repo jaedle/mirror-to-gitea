@@ -51,12 +51,17 @@ else
     echo "$PUBLIC_USER_ORGS" | jq '.[].login'
 fi
 
-echo "Method 3 - Looking for specific organizations:"
-for org in "Gameplex-labs" "Neucruit" "uiastra"; do
+echo "Method 3 - Looking for specific organizations (if any):"
+# Get organizations from INCLUDE_ORGS environment variable
+INCLUDE_ORGS_ARR=(${INCLUDE_ORGS//,/ })
+if [ ${#INCLUDE_ORGS_ARR[@]} -eq 0 ]; then
+    echo "No organizations specified in INCLUDE_ORGS. Skipping direct organization checks."
+else
+    for org in "${INCLUDE_ORGS_ARR[@]}"; do
     ORG_DETAILS=$(curl -s -H "Authorization: token $GITHUB_TOKEN" "https://api.github.com/orgs/$org")
     if [[ $(echo "$ORG_DETAILS" | jq 'has("login")') == "true" ]]; then
         echo "Found organization: $org"
-        
+
         # Check if we can access the organization's repositories
         ORG_REPOS=$(curl -s -H "Authorization: token $GITHUB_TOKEN" "https://api.github.com/orgs/$org/repos?per_page=1")
         REPO_COUNT=$(echo "$ORG_REPOS" | jq '. | length')
@@ -70,6 +75,7 @@ for org in "Gameplex-labs" "Neucruit" "uiastra"; do
         echo "Could not find organization: $org (or no permission to access it)"
     fi
 done
+fi
 
 echo -e "\nTesting GitHub starred repos access:"
 echo "Method 1 - Using /user/starred endpoint (authenticated user):"
@@ -105,16 +111,16 @@ echo "Found $REPO_COUNT recently updated repositories to check for issues"
 for i in $(seq 0 $(($REPO_COUNT - 1))); do
     REPO=$(echo "$USER_REPOS" | jq -r ".[$i].full_name")
     REPO_HAS_ISSUES=$(echo "$USER_REPOS" | jq -r ".[$i].has_issues")
-    
+
     if [ "$REPO_HAS_ISSUES" = "true" ]; then
         ISSUES_RESPONSE=$(curl -s -H "Authorization: token $GITHUB_TOKEN" "https://api.github.com/repos/$REPO/issues?state=all&per_page=1")
         ISSUES_COUNT=$(curl -s -H "Authorization: token $GITHUB_TOKEN" -I "https://api.github.com/repos/$REPO/issues?state=all" | grep -i "^link:" | grep -o "page=[0-9]*" | sort -r | head -1 | cut -d= -f2 || echo "0")
-        
+
         if [ -z "$ISSUES_COUNT" ]; then
             # If we couldn't get the count from Link header, count the array length
             ISSUES_COUNT=$(echo "$ISSUES_RESPONSE" | jq '. | length')
         fi
-        
+
         if [ "$ISSUES_COUNT" -gt 0 ]; then
             echo "Repository $REPO has approximately $ISSUES_COUNT issues"
             echo "Latest issue: $(echo "$ISSUES_RESPONSE" | jq -r '.[0].title // "No title"')"

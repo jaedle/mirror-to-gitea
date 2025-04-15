@@ -59,6 +59,9 @@ async function main() {
 		singleRepo: config.github.singleRepo,
 		includeOrgs: config.github.includeOrgs,
 		excludeOrgs: config.github.excludeOrgs,
+		// New options for public organizations
+		mirrorPublicOrgs: config.github.mirrorPublicOrgs,
+		publicOrgs: config.github.publicOrgs,
 		preserveOrgStructure: config.github.preserveOrgStructure,
 	});
 
@@ -87,7 +90,7 @@ async function main() {
 	const orgTargets = new Map();
 
 	// If mirroring organizations is enabled, create Gitea organizations for all GitHub orgs the user belongs to
-	if (config.github.mirrorOrganizations) {
+	if (config.github.mirrorOrganizations || config.github.mirrorPublicOrgs) {
 		console.log("Fetching GitHub organizations for mirroring...");
 		// Fetch all organizations the user belongs to
 		let userOrgs = [];
@@ -145,10 +148,13 @@ async function main() {
 					console.log("No organizations found through standard endpoints. Trying direct API calls to specific organizations.");
 					userOrgs = [];
 
-					// Try to directly check some known organizations
-					const knownOrgs = config.github.includeOrgs.length > 0 ? config.github.includeOrgs : ['Gameplex-labs', 'uiastra', 'Neucruit'];
+					// Only check organizations explicitly specified in includeOrgs
+					if (config.github.includeOrgs.length === 0) {
+						console.log("No organizations specified in INCLUDE_ORGS. Skipping direct organization checks.");
+						return;
+					}
 
-					for (const orgName of knownOrgs) {
+					for (const orgName of config.github.includeOrgs) {
 						try {
 							const response = await octokit.request('GET /orgs/{org}', {
 								org: orgName,
@@ -179,15 +185,17 @@ async function main() {
 			// Filter organizations based on include/exclude lists
 			if (config.github.includeOrgs.length > 0) {
 				console.log(`Filtering to include only these organizations: ${config.github.includeOrgs.join(', ')}`);
+				// Make case-insensitive comparison
 				userOrgs = userOrgs.filter(org =>
-					config.github.includeOrgs.includes(org.login)
+					config.github.includeOrgs.some(includedOrg => includedOrg.toLowerCase() === org.login.toLowerCase())
 				);
 			}
 
 			if (config.github.excludeOrgs.length > 0) {
 				console.log(`Excluding these organizations: ${config.github.excludeOrgs.join(', ')}`);
+				// Make case-insensitive comparison
 				userOrgs = userOrgs.filter(org =>
-					!config.github.excludeOrgs.includes(org.login)
+					!config.github.excludeOrgs.some(excludedOrg => excludedOrg.toLowerCase() === org.login.toLowerCase())
 				);
 			}
 
@@ -217,6 +225,30 @@ async function main() {
 					orgTargets.set(orgName, orgTarget);
 				} else {
 					console.error(`Failed to get or create Gitea organization: ${orgName}`);
+				}
+			}
+
+			// Handle public organizations if enabled
+			if (config.github.mirrorPublicOrgs && config.github.publicOrgs.length > 0) {
+				console.log("Processing public organizations...");
+				for (const orgName of config.github.publicOrgs) {
+					console.log(`Preparing Gitea organization for public GitHub organization: ${orgName}`);
+
+					// Create the organization if it doesn't exist
+					await createGiteaOrganization(
+						gitea,
+						orgName,
+						config.gitea.visibility,
+						config.dryRun
+					);
+
+					// Get the organization details
+					const orgTarget = await getGiteaOrganization(gitea, orgName);
+					if (orgTarget) {
+						orgTargets.set(orgName, orgTarget);
+					} else {
+						console.error(`Failed to get or create Gitea organization: ${orgName}`);
+					}
 				}
 			}
 		} catch (error) {
