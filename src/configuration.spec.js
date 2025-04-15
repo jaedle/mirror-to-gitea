@@ -14,6 +14,10 @@ const variables = [
 	"GITHUB_USERNAME",
 	"MIRROR_PRIVATE_REPOSITORIES",
 	"SKIP_FORKS",
+	"MIRROR_PUBLIC_ORGS",
+	"PUBLIC_ORGS",
+	"INCLUDE_ORGS",
+	"EXCLUDE_ORGS",
 ];
 
 function provideMandatoryVariables() {
@@ -188,5 +192,75 @@ describe("configuration", () => {
 		const config = configuration();
 
 		expect(config.delay).toEqual(1200);
+	});
+
+	describe("mirror public organizations flag", () => {
+		it("treats true as true", () => {
+			provideMandatoryVariables();
+			process.env.GITHUB_TOKEN = aGithubToken;
+			process.env.MIRROR_PUBLIC_ORGS = "true";
+
+			const config = configuration();
+
+			expect(config.github.mirrorPublicOrgs).toEqual(true);
+		});
+
+		it("treats 1 as true", () => {
+			provideMandatoryVariables();
+			process.env.GITHUB_TOKEN = aGithubToken;
+			process.env.MIRROR_PUBLIC_ORGS = "1";
+
+			const config = configuration();
+
+			expect(config.github.mirrorPublicOrgs).toEqual(true);
+		});
+
+		it("treats missing flag as false", () => {
+			provideMandatoryVariables();
+
+			const config = configuration();
+
+			expect(config.github.mirrorPublicOrgs).toEqual(false);
+		});
+	});
+
+	describe("public organizations list", () => {
+		it("parses comma-separated list", () => {
+			provideMandatoryVariables();
+			process.env.PUBLIC_ORGS = "org1,org2,org3";
+
+			const config = configuration();
+
+			expect(config.github.publicOrgs).toEqual(["org1", "org2", "org3"]);
+		});
+
+		it("handles empty list", () => {
+			provideMandatoryVariables();
+			process.env.PUBLIC_ORGS = "";
+
+			const config = configuration();
+
+			expect(config.github.publicOrgs).toEqual([]);
+		});
+
+		it("trims whitespace", () => {
+			provideMandatoryVariables();
+			process.env.PUBLIC_ORGS = " org1 , org2 , org3 ";
+
+			const config = configuration();
+
+			expect(config.github.publicOrgs).toEqual(["org1", "org2", "org3"]);
+		});
+	});
+
+	it("requires a github token for public organization mirroring", () => {
+		provideMandatoryVariables();
+		process.env.MIRROR_PUBLIC_ORGS = "true";
+
+		expect(() => configuration()).toThrow(
+			new Error(
+				"invalid configuration, mirroring issues, starred repositories, organizations, public organizations, or a single repo requires setting GITHUB_TOKEN",
+			),
+		);
 	});
 });
