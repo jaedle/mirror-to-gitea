@@ -151,29 +151,30 @@ async function main() {
 					// Only check organizations explicitly specified in includeOrgs
 					if (config.github.includeOrgs.length === 0) {
 						console.log("No organizations specified in INCLUDE_ORGS. Skipping direct organization checks.");
-						return;
-					}
+						// Don't return here, as it would prevent the rest of the function from executing
+						// Just continue with an empty userOrgs array
+						userOrgs = [];
+					} else {
+						for (const orgName of config.github.includeOrgs) {
+							try {
+								const response = await octokit.request('GET /orgs/{org}', {
+									org: orgName,
+									headers: {
+										'X-GitHub-Api-Version': '2022-11-28'
+									}
+								});
 
-					for (const orgName of config.github.includeOrgs) {
-						try {
-							const response = await octokit.request('GET /orgs/{org}', {
-								org: orgName,
-								headers: {
-									'X-GitHub-Api-Version': '2022-11-28'
+								console.log(`Successfully found organization: ${orgName}`);
+								userOrgs.push(response.data);
+							} catch (orgError) {
+								if (orgError.message.includes('organization forbids access via a fine-grained personal access tokens if the token\'s lifetime is greater than 366 days')) {
+									console.error(`\n\nERROR: The '${orgName}' organization has a policy that forbids access via fine-grained personal access tokens with a lifetime greater than 366 days.\n\nPlease adjust your token's lifetime or create a new token with a shorter lifetime.\nSee the error message for details: ${orgError.message}\n`);
+								} else {
+									console.log(`Could not find organization: ${orgName} - ${orgError.message}`);
 								}
-							});
-
-							console.log(`Successfully found organization: ${orgName}`);
-							userOrgs.push(response.data);
-						} catch (orgError) {
-							if (orgError.message.includes('organization forbids access via a fine-grained personal access tokens if the token\'s lifetime is greater than 366 days')) {
-								console.error(`\n\nERROR: The '${orgName}' organization has a policy that forbids access via fine-grained personal access tokens with a lifetime greater than 366 days.\n\nPlease adjust your token's lifetime or create a new token with a shorter lifetime.\nSee the error message for details: ${orgError.message}\n`);
-							} else {
-								console.log(`Could not find organization: ${orgName} - ${orgError.message}`);
 							}
 						}
 					}
-				}
 			} catch (error) {
 				console.error(`Error fetching organizations: ${error.message}`);
 				userOrgs = [];
