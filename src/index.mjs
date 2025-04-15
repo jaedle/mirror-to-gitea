@@ -210,6 +210,14 @@ async function main() {
 				console.log("No organizations to mirror after filtering. Check your INCLUDE_ORGS and EXCLUDE_ORGS settings.");
 			}
 
+			// Add detected organizations to the includeOrgs list for repository fetching
+			if (userOrgs.length > 0) {
+				const orgNames = userOrgs.map(org => org.login);
+				console.log(`Adding detected organizations to includeOrgs: ${orgNames.join(', ')}`);
+				config.github.includeOrgs = [...new Set([...config.github.includeOrgs, ...orgNames])];
+				console.log(`Updated includeOrgs: ${config.github.includeOrgs.join(', ')}`);
+			}
+
 			// Create each organization in Gitea
 			for (const org of userOrgs) {
 				const orgName = org.login;
