@@ -177,6 +177,7 @@ async function main() {
 							}
 						}
 					}
+				}
 			} catch (error) {
 				console.error(`Error fetching organizations: ${error.message}`);
 				userOrgs = [];
