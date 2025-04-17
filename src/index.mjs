@@ -592,7 +592,7 @@ async function mirror(repository, gitea, giteaTarget, githubToken, mirrorIssuesF
 		}
 	}
 	// For starred repositories, use the starred repos organization if configured
-	else if (repository.starred && gitea.starredReposOrg) {
+	if (repository.starred && gitea.starredReposOrg) {
 		// Get the starred repos organization
 		const starredOrg = await getGiteaOrganization(gitea, gitea.starredReposOrg);
 		if (starredOrg) {
