@@ -29,5 +29,5 @@ docker container run \
  -e PRESERVE_ORG_STRUCTURE=true \
  -e GITEA_STARRED_ORGANIZATION="$GITEA_STARRED_ORGANIZATION" \
  -e SKIP_STARRED_ISSUES="$SKIP_STARRED_ISSUES" \
- -e DRY_RUN=false \
+ -e DRY_RUN=true \
  jaedle/mirror-to-gitea:development

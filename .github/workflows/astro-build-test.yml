@@ -1,0 +1,50 @@
+name: Astro Build and Test
+
+on:
+  push:
+    branches: [ '*' ]
+    paths-ignore:
+      - 'README.md'
+      - 'docs/**'
+  pull_request:
+    branches: [ '*' ]
+    paths-ignore:
+      - 'README.md'
+      - 'docs/**'
+
+jobs:
+  build-and-test:
+    name: Build and Test Astro Project
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 10
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Run tests
+        run: pnpm test
+
+      - name: Build Astro project
+        run: pnpm build
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: astro-build
+          path: dist/
+          retention-days: 7
