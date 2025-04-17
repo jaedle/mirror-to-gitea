@@ -38,13 +38,21 @@ export function configuration() {
 			mirrorIssues: readBoolean("MIRROR_ISSUES"),
 			mirrorStarred: readBoolean("MIRROR_STARRED"),
 			mirrorOrganizations: readBoolean("MIRROR_ORGANIZATIONS"),
+			onlyMirrorOrgs: readBoolean("ONLY_MIRROR_ORGS"),
 			useSpecificUser: readBoolean("USE_SPECIFIC_USER"),
 			singleRepo: readEnv("SINGLE_REPO"),
+			// For organizations where the user is a member
 			includeOrgs: (readEnv("INCLUDE_ORGS") || "")
 				.split(",")
 				.map((o) => o.trim())
 				.filter((o) => o.length > 0),
 			excludeOrgs: (readEnv("EXCLUDE_ORGS") || "")
+				.split(",")
+				.map((o) => o.trim())
+				.filter((o) => o.length > 0),
+			// New option for public organizations
+			mirrorPublicOrgs: readBoolean("MIRROR_PUBLIC_ORGS"),
+			publicOrgs: (readEnv("PUBLIC_ORGS") || "")
 				.split(",")
 				.map((o) => o.trim())
 				.filter((o) => o.length > 0),
@@ -76,10 +84,10 @@ export function configuration() {
 	}
 
 	// GitHub token is required for mirroring issues, starred repos, and orgs
-	if ((config.github.mirrorIssues || config.github.mirrorStarred || config.github.mirrorOrganizations || config.github.singleRepo) 
-		&& config.github.token === undefined) {
+	if ((config.github.mirrorIssues || config.github.mirrorStarred || config.github.mirrorOrganizations ||
+		config.github.mirrorPublicOrgs || config.github.singleRepo) && config.github.token === undefined) {
 		throw new Error(
-			"invalid configuration, mirroring issues, starred repositories, organizations, or a single repo requires setting GITHUB_TOKEN",
+			"invalid configuration, mirroring issues, starred repositories, organizations, public organizations, or a single repo requires setting GITHUB_TOKEN",
 		);
 	}
 
