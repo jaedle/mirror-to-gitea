@@ -176,6 +176,10 @@ async function fetchOrganizationRepositories(octokit, includeOrgs = [], excludeO
 				});
 				console.log(`Found ${orgRepos.length} public repositories for org: ${orgName}`);
 
+				if (!options.privateRepositories) {
+					orgRepos = orgRepos.filter(repo => !repo.private);
+				}
+
 				// Add organization context to each repository if preserveOrgStructure is enabled
 				if (preserveOrgStructure) {
 					orgRepos = orgRepos.map(repo => ({
