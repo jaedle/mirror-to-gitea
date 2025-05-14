@@ -185,7 +185,7 @@ async function fetchOrganizationRepositories(octokit, includeOrgs = [], excludeO
 					});
 					
 					// Search API returns repositories in the 'items' array
-					orgRepos = searchResults.flatMap(result => result.items || []);
+					orgRepos = searchResults.flatMap(result => result || []);
 					console.log(`Found ${orgRepos.length} repositories (public and private) for org: ${orgName}`);
 				} else {
 					// Use standard API for public repositories only
