@@ -160,8 +160,6 @@ async function fetchOrganizationRepositories(octokit, includeOrgs = [], excludeO
 
 		console.log(`Processing repositories from ${orgsToProcess.length} organizations`);
 
-		// Determine if we need to fetch private repositories
-		const privateRepoAccess = options.privateRepositories && octokit.auth;
 		const allOrgRepos = [];
 
 		// Process each organization
@@ -172,13 +170,10 @@ async function fetchOrganizationRepositories(octokit, includeOrgs = [], excludeO
 			try {
 				let orgRepos = await octokit.paginate("GET /orgs/{org}/repos", {
 					org: orgName,
+					type: options.privateRepositories ? 'all' : 'public',
 					per_page: 100
 				});
 				console.log(`Found ${orgRepos.length} public repositories for org: ${orgName}`);
-
-				if (!options.privateRepositories) {
-					orgRepos = orgRepos.filter(repo => !repo.private);
-				}
 
 				// Add organization context to each repository if preserveOrgStructure is enabled
 				if (preserveOrgStructure) {
