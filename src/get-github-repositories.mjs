@@ -170,7 +170,7 @@ async function fetchOrganizationRepositories(octokit, includeOrgs = [], excludeO
 			console.log(`Fetching repositories for organization: ${orgName}`);
 
 			try {
-				const orgRepos = await octokit.paginate("GET /orgs/{org}/repos", {
+				let orgRepos = await octokit.paginate("GET /orgs/{org}/repos", {
 					org: orgName,
 					per_page: 100
 				});
