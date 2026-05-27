@@ -1,7 +1,8 @@
 # Automatically Mirror Github Repo To Your Gitea Server
 
 This project is considered in maintenance mode and will only receive bug-fixes but likely no new features. 
-Potential successors:
+
+Alternarives:
 
 - [Gitea-Mirror](https://github.com/RayLabsHQ/gitea-mirror)
 - [Gitea GitHub Mirror](https://github.com/yuanweize/gitea-github-mirror)
