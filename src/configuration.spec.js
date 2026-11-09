@@ -12,6 +12,7 @@ const variables = [
 	"GITEA_URL",
 	"GITHUB_TOKEN",
 	"GITHUB_USERNAME",
+	"MIRROR_LFS",
 	"MIRROR_PRIVATE_REPOSITORIES",
 	"SKIP_FORKS",
 ];
@@ -43,6 +44,7 @@ describe("configuration", () => {
 
 		expect(config.gitea.url).toEqual(aGiteaUrl);
 		expect(config.gitea.token).toEqual(aGiteaToken);
+		expect(config.gitea.mirrorLfs).toEqual(false);
 
 		expect(config.delay).toEqual(defaultDelay);
 	});
@@ -136,6 +138,34 @@ describe("configuration", () => {
 			const config = configuration();
 
 			expect(config.github.skipForks).toEqual(false);
+		});
+	});
+
+	describe("mirror lfs flag", () => {
+		it("treats true as true", () => {
+			provideMandatoryVariables();
+			process.env.MIRROR_LFS = "true";
+
+			const config = configuration();
+
+			expect(config.gitea.mirrorLfs).toEqual(true);
+		});
+
+		it("treats 1 as true", () => {
+			provideMandatoryVariables();
+			process.env.MIRROR_LFS = "1";
+
+			const config = configuration();
+
+			expect(config.gitea.mirrorLfs).toEqual(true);
+		});
+
+		it("treats missing flag as false", () => {
+			provideMandatoryVariables();
+
+			const config = configuration();
+
+			expect(config.gitea.mirrorLfs).toEqual(false);
 		});
 	});
 

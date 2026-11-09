@@ -144,7 +144,8 @@ async function main() {
 						url: config.gitea.url,
 						token: config.gitea.token,
 						skipStarredIssues: config.github.skipStarredIssues,
-						starredReposOrg: config.gitea.starredReposOrg
+						starredReposOrg: config.gitea.starredReposOrg,
+						mirrorLfs: config.gitea.mirrorLfs,
 					},
 					giteaTarget,
 					config.github.token,
@@ -263,6 +264,7 @@ async function mirrorOnGitea(repository, gitea, giteaTarget, githubToken) {
 				repo_name: repository.name,
 				uid: giteaTarget.id,
 				private: repository.private,
+				lfs: gitea.mirrorLfs === true,
 			});
 		
 		console.log(`Successfully mirrored: ${repository.name}`);
