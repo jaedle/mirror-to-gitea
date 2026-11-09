@@ -57,6 +57,7 @@ export function configuration() {
 			organization: readEnv("GITEA_ORGANIZATION"),
 			visibility: readEnv("GITEA_ORG_VISIBILITY") || "public",
 			starredReposOrg: readEnv("GITEA_STARRED_ORGANIZATION") || "github",
+			mirrorLfs: readBoolean("MIRROR_LFS"),
 		},
 		dryRun: readBoolean("DRY_RUN"),
 		delay: readInt("DELAY") ?? defaultDelay,
